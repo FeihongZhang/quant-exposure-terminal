@@ -475,6 +475,7 @@ def main():
             "dates": [d.strftime("%Y-%m-%d") for d in bt.index],
             "exec_net": [round(float(x * 100), 1) for x in bt["exec_net"]],
             "target_gross": [round(float(x * 100), 1) for x in bt["target_gross"]],
+            "ndx": [round(float(x), 1) for x in close.loc[bt.index, "^NDX"]],
             "S": [round(float(x), 2) for x in bt["S"]],
         },
     }

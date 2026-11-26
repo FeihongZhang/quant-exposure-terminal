@@ -172,6 +172,7 @@
       <div class="flex flex-wrap items-center gap-2 text-xs">
         <button id="btnModePan" class="filter-btn active px-2.5 py-1 rounded border border-gray-700 text-gray-300" title="左键拖动平移横轴">拖动平移</button>
         <button id="btnModeBox" class="filter-btn px-2.5 py-1 rounded border border-gray-700 text-gray-300" title="左键框选区间放大">框选放大</button>
+        <button id="btnToggleNdx" class="filter-btn active px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">叠加纳指 (NDX)</button>
         <button id="btnToggleGross" class="px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">叠加 Gross</button>
         <button id="btnZoomIn" class="px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800 mono" title="放大">+</button>
         <button id="btnZoomOut" class="px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800 mono" title="缩小">−</button>
@@ -301,8 +302,10 @@
     let NET_DATES = [];
     let NET_VALUES = [];
     let NET_GROSS = [];
+    let NET_NDX = [];
     let NET_SCORES = [];
     let NET_SWITCH_FLAGS = [];
+    let SHOW_NDX_OVERLAY = true;
     let SHOW_GROSS_OVERLAY = false;
     const MIN_VISIBLE_DAYS = 20;
 
@@ -434,10 +437,25 @@
       fill.style.left = `${leftPct}%`;
       fill.style.width = `${Math.max(0.8, rightPct - leftPct)}%`;
 
-      // Count switches inside current visible window
+      // Count switches inside current visible window & auto-fit right NDX axis
       let switches = 0;
+      let ndxMin = Infinity, ndxMax = -Infinity;
       for (let i = minI; i <= maxI; i++) {
         if (NET_SWITCH_FLAGS[i]) switches++;
+        const nv = NET_NDX[i];
+        if (nv != null && nv > 0) {
+          if (nv < ndxMin) ndxMin = nv;
+          if (nv > ndxMax) ndxMax = nv;
+        }
+      }
+      if (SHOW_NDX_OVERLAY && ndxMin < Infinity && ndxMax > 0 && NET_CHART.options.scales.yNdx) {
+        const yMin = Math.max(1, ndxMin * 0.94);
+        const yMax = ndxMax * 1.06;
+        if (NET_CHART.options.scales.yNdx.min !== yMin || NET_CHART.options.scales.yNdx.max !== yMax) {
+          NET_CHART.options.scales.yNdx.min = yMin;
+          NET_CHART.options.scales.yNdx.max = yMax;
+          NET_CHART.update('none');
+        }
       }
       document.getElementById('netWindowLabel').textContent =
         `${NET_DATES[minI]} ~ ${NET_DATES[maxI]}（${span} 交易日 · ${switches} 次调仓切换）`;
@@ -573,16 +591,18 @@
         }
       });
 
-      // Daily Net Exposure Chart with X-axis pan & zoom
+      // Daily Net Exposure Chart with X-axis pan & zoom + NDX overlay
       const dn = data.daily_net || {
         dates: series.dates,
         exec_net: series.exec_net,
         target_gross: series.exec_net.map(() => null),
+        ndx: series.exec_net.map(() => null),
         S: series.exec_net.map(() => null),
       };
       NET_DATES = dn.dates;
       NET_VALUES = dn.exec_net;
       NET_GROSS = dn.target_gross || [];
+      NET_NDX = dn.ndx || [];
       NET_SCORES = dn.S || [];
       NET_SWITCH_FLAGS = NET_VALUES.map((v, i) => i > 0 && Math.abs(v - NET_VALUES[i - 1]) >= 0.05);
 
@@ -603,11 +623,13 @@
             {
               label: '动态 Target Net Exposure (%)',
               data: NET_VALUES,
+              yAxisID: 'y',
               stepped: 'after',
               borderColor: '#f59e0b',
               backgroundColor: 'rgba(245, 158, 11, 0.14)',
               fill: { target: { value: 0 }, above: 'rgba(16, 185, 129, 0.14)', below: 'rgba(244, 63, 94, 0.22)' },
-              borderWidth: 1.8,
+              borderWidth: 1.9,
+              order: 2,
               pointRadius: (ctx) => {
                 const i = ctx.dataIndex;
                 if (!NET_SWITCH_FLAGS[i]) return 0;
@@ -626,12 +648,25 @@
               pointBorderWidth: 1.2,
             },
             {
+              label: '纳指 100 (NDX · 右轴对数)',
+              data: NET_NDX,
+              yAxisID: 'yNdx',
+              borderColor: '#60a5fa',
+              borderWidth: 1.6,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              order: 1,
+              hidden: !SHOW_NDX_OVERLAY,
+            },
+            {
               label: 'Target Gross 上限 (%)',
               data: NET_GROSS,
-              borderColor: 'rgba(56, 189, 248, 0.75)',
+              yAxisID: 'y',
+              borderColor: 'rgba(192, 132, 252, 0.78)',
               borderDash: [4, 3],
               borderWidth: 1.3,
               pointRadius: 0,
+              order: 3,
               hidden: !SHOW_GROSS_OVERLAY,
             }
           ]
@@ -643,10 +678,22 @@
           interaction: { mode: 'index', intersect: false },
           scales: {
             y: {
+              position: 'left',
               min: -35,
               max: 160,
               grid: { color: '#1f2937' },
-              ticks: { color: '#9ca3af', callback: v => v + '%' }
+              ticks: { color: '#f59e0b', callback: v => v + '%' }
+            },
+            yNdx: {
+              type: 'logarithmic',
+              position: 'right',
+              display: SHOW_NDX_OVERLAY,
+              grid: { drawOnChartArea: false },
+              ticks: {
+                color: '#60a5fa',
+                maxTicksLimit: 7,
+                callback: v => Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })
+              }
             },
             x: {
               min: 0,
@@ -664,6 +711,14 @@
               titleColor: '#f8fafc',
               bodyColor: '#e2e8f0',
               callbacks: {
+                label: (ctx) => {
+                  const v = ctx.parsed.y;
+                  if (v == null) return '';
+                  if (ctx.dataset.yAxisID === 'yNdx') {
+                    return ` 纳指 100 (NDX): ${v.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+                  }
+                  return ` ${ctx.dataset.label}: ${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
+                },
                 afterBody: (items) => {
                   if (!items.length) return [];
                   const idx = items[0].dataIndex;
@@ -791,10 +846,21 @@
         wrap.className = 'h-72 md:h-80 cursor-crosshair';
       });
 
+      document.getElementById('btnToggleNdx').addEventListener('click', (ev) => {
+        if (!NET_CHART) return;
+        SHOW_NDX_OVERLAY = !SHOW_NDX_OVERLAY;
+        NET_CHART.data.datasets[1].hidden = !SHOW_NDX_OVERLAY;
+        NET_CHART.options.scales.yNdx.display = SHOW_NDX_OVERLAY;
+        NET_CHART.update('none');
+        if (SHOW_NDX_OVERLAY) syncNetRangeUI();
+        ev.target.classList.toggle('filter-btn', SHOW_NDX_OVERLAY);
+        ev.target.classList.toggle('active', SHOW_NDX_OVERLAY);
+      });
+
       document.getElementById('btnToggleGross').addEventListener('click', (ev) => {
         if (!NET_CHART) return;
         SHOW_GROSS_OVERLAY = !SHOW_GROSS_OVERLAY;
-        NET_CHART.data.datasets[1].hidden = !SHOW_GROSS_OVERLAY;
+        NET_CHART.data.datasets[2].hidden = !SHOW_GROSS_OVERLAY;
         NET_CHART.update('none');
         ev.target.classList.toggle('filter-btn', SHOW_GROSS_OVERLAY);
         ev.target.classList.toggle('active', SHOW_GROSS_OVERLAY);
