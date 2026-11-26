@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tech/AI 量化敞口管理终端 v2.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background-color: #0b0f19; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .card { background-color: #111827; border: 1px solid #1f2937; border-radius: 12px; }
+    .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .filter-btn.active { background-color: #2563eb; color: #ffffff; border-color: #3b82f6; }
+  </style>
+</head>
+<body class="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+
+  <!-- Header -->
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-4">
+    <div>
+      <div class="flex items-center gap-2.5">
+        <h1 class="text-2xl font-bold tracking-tight text-white">Tech / AI 量化敞口管理终端</h1>
+        <span id="modelBadge" class="px-2 py-0.5 text-xs font-semibold rounded-full bg-sky-900/60 text-sky-300 border border-sky-700/60 mono">v2.0</span>
+      </div>
+      <p class="text-sm text-gray-400 mt-1">Long-Biased Systematic Exposure Overlay · Gross 上限 150% · Net -25% ~ +120% · 每日自动更新</p>
+    </div>
+    <div class="text-right text-xs text-gray-400 mono">
+      <div>最新交易日：<span id="latestDate" class="text-gray-200 font-semibold">--</span></div>
+      <div>回测区间：<span id="btRange">--</span></div>
+      <div>系统更新：<span id="updatedAt">--</span></div>
+    </div>
+  </header>
+
+  <!-- Loading / Error Banner -->
+  <div id="statusBanner" class="hidden p-4 rounded-lg bg-red-900/40 border border-red-700 text-red-200 text-sm"></div>
+
+  <!-- Top KPI Cards -->
+  <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="card p-5">
+      <div class="text-xs text-gray-400 uppercase">当前市场状态</div>
+      <div id="regimeLabel" class="text-xl font-bold mt-2">--</div>
+      <div id="regimeAction" class="text-xs text-gray-400 mt-2 leading-relaxed">--</div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs text-gray-400 uppercase">综合得分 S (12D EMA)</div>
+      <div id="scoreS" class="text-3xl font-bold mono mt-2">--</div>
+      <div class="text-xs text-gray-400 mt-2 mono">VIX: <span id="vixVal">--</span> | US10Y: <span id="us10yVal">--</span>%</div>
+    </div>
+    <div class="card p-5 border-blue-500/40">
+      <div class="text-xs text-blue-400 uppercase font-semibold">Target Net Exposure</div>
+      <div id="targetNet" class="text-3xl font-bold mono text-white mt-2">--</div>
+      <div class="text-xs text-gray-400 mt-2 mono">参考多空：L <span id="refLong">--</span> / S <span id="refShort">--</span></div>
+    </div>
+    <div class="card p-5">
+      <div class="text-xs text-gray-400 uppercase">Target Gross 上限</div>
+      <div id="targetGross" class="text-3xl font-bold mono text-white mt-2">--</div>
+      <div class="text-xs text-gray-400 mt-2 mono">20D / 60D 波动：<span id="realizedVol">--</span></div>
+    </div>
+  </section>
+
+  <!-- Factor Breakdown & Hedge Calculator -->
+  <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <!-- 4 Factors -->
+    <div class="card p-5 lg:col-span-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">v2.0 四维度方向因子拆解</h2>
+        <span class="text-xs text-gray-400 mono">未平滑 S: <span id="scoreSRaw">--</span></span>
+      </div>
+      <div id="factorBars" class="space-y-4"></div>
+      <div class="pt-3 border-t border-gray-800 space-y-2 text-xs text-gray-400">
+        <div>权重：长期趋势 45% · 相对标普 25% · 波动体制 15% · 信用利率 15%</div>
+        <div class="mono">原始目标 Net：<span id="rawTargetNet">--</span>（15% 缓冲区防高频磨损）</div>
+        <div class="flex flex-wrap gap-1.5 pt-1" id="gateBadges"></div>
+      </div>
+    </div>
+
+    <!-- Interactive Beta-Adjusted Hedge Calculator -->
+    <div class="card p-5 lg:col-span-7 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">Beta-Adjusted 指数对冲计算器</h2>
+        <span class="text-xs text-gray-400 mono">QQQ: $<span id="qqqPrice">--</span> | NDX: <span id="ndxPrice">--</span></span>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">组合净值 NAV ($)</label>
+          <input id="inNav" type="number" value="1000000" step="50000" class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 mono text-white" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">当前多头仓位 (%)</label>
+          <input id="inLongPct" type="number" value="100" step="5" class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 mono text-white" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">多头平均 Beta</label>
+          <input id="inLongBeta" type="number" value="1.35" step="0.05" class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 mono text-white" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">当前空头仓位 (%)</label>
+          <input id="inShortPct" type="number" value="20" step="5" class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 mono text-white" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">空头平均 Beta</label>
+          <input id="inShortBeta" type="number" value="1.00" step="0.05" class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 mono text-white" />
+        </div>
+        <div class="flex items-end">
+          <div class="w-full bg-gray-900/70 border border-gray-800 rounded px-3 py-1.5 text-xs">
+            <span class="text-gray-400">当前 Beta-Net: </span>
+            <span id="outCurBetaNet" class="mono font-bold text-white">--</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 rounded-lg bg-gray-900/80 border border-gray-800 space-y-2 text-sm">
+        <div class="flex justify-between">
+          <span class="text-gray-400">敞口缺口 (目标 Net - 当前 Beta-Net)</span>
+          <span id="outGap" class="mono font-bold">--</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-400">对应名义调仓金额</span>
+          <span id="outDollarGap" class="mono font-bold text-white">--</span>
+        </div>
+        <div class="flex justify-between pt-2 border-t border-gray-800">
+          <span class="text-gray-300 font-medium">Overlay 执行方案 A (QQQ)</span>
+          <span id="outQQQ" class="mono font-bold text-sky-400">--</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-300 font-medium">Overlay 执行方案 B (MNQ 纳指微期货, $2/点)</span>
+          <span id="outMNQ" class="mono font-bold text-emerald-400">--</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Charts -->
+  <section class="card p-5 space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">1999–至今 历史回测净值、回撤与动态 Net 曲线（仅 Beta 层）</h2>
+      <div class="text-xs text-gray-400 mono">年化换手率：<span id="turnoverVal">--</span> | 总调仓：<span id="rebalCount">--</span> 次</div>
+    </div>
+    <div class="h-80"><canvas id="equityChart"></canvas></div>
+    <div class="h-44"><canvas id="ddChart"></canvas></div>
+    <div class="h-44"><canvas id="netChart"></canvas></div>
+  </section>
+
+  <!-- Performance & Crises Tables -->
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="card p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">核心绩效对比（全周期 vs 2016–至今样本外）</h2>
+        <div class="flex gap-1.5 text-xs">
+          <button id="btnFullM" class="filter-btn active px-2.5 py-0.5 rounded border border-gray-700 text-gray-300">全周期</button>
+          <button id="btnOosM" class="filter-btn px-2.5 py-0.5 rounded border border-gray-700 text-gray-300">样本外 2016+</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left mono">
+          <thead class="text-xs text-gray-400 border-b border-gray-800">
+            <tr>
+              <th class="py-2">组合</th>
+              <th class="py-2 text-right">CAGR</th>
+              <th class="py-2 text-right">波动率</th>
+              <th class="py-2 text-right">Sharpe</th>
+              <th class="py-2 text-right">MaxDD</th>
+              <th class="py-2 text-right">Calmar</th>
+            </tr>
+          </thead>
+          <tbody id="metricsBody" class="divide-y divide-gray-800/60"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card p-5">
+      <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider mb-4">历次危机与核心周期表现对比</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left mono">
+          <thead class="text-xs text-gray-400 border-b border-gray-800">
+            <tr>
+              <th class="py-2">历史周期</th>
+              <th class="py-2 text-right">基准收益</th>
+              <th class="py-2 text-right">策略收益</th>
+              <th class="py-2 text-right">平均 Net</th>
+            </tr>
+          </thead>
+          <tbody id="crisesBody" class="divide-y divide-gray-800/60"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Major Rebalance Log -->
+  <section class="card p-5 space-y-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">历次重大加减仓精确日志（5日 |ΔNet| ≥ 25%）</h2>
+        <p class="text-xs text-gray-400 mt-1">按时间倒序展示，便于复盘每次关键拐点与主导因子</p>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <button data-filter="all" class="ev-filter-btn filter-btn active px-3 py-1 rounded border border-gray-700 text-gray-300">全部 (<span id="cntAll">0</span>)</button>
+        <button data-filter="重大加仓" class="ev-filter-btn filter-btn px-3 py-1 rounded border border-gray-700 text-gray-300">重大加仓 (<span id="cntAdd">0</span>)</button>
+        <button data-filter="重大减仓" class="ev-filter-btn filter-btn px-3 py-1 rounded border border-gray-700 text-gray-300">重大减仓 (<span id="cntCut">0</span>)</button>
+      </div>
+    </div>
+    <div class="overflow-x-auto max-h-96 overflow-y-auto">
+      <table class="w-full text-sm text-left mono">
+        <thead class="text-xs text-gray-400 border-b border-gray-800 sticky top-0 bg-[#111827]">
+          <tr>
+            <th class="py-2">日期</th>
+            <th class="py-2">动作</th>
+            <th class="py-2 text-right">调仓前 Net</th>
+            <th class="py-2 text-right">调仓后 Net</th>
+            <th class="py-2 text-right">ΔNet</th>
+            <th class="py-2 text-right">调仓后 Gross</th>
+            <th class="py-2 text-right">得分 S</th>
+            <th class="py-2 text-right">主导因子</th>
+          </tr>
+        </thead>
+        <tbody id="eventsBody" class="divide-y divide-gray-800/60"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <script>
+    let GLOBAL_DATA = null;
+    let CURRENT_EVENT_FILTER = 'all';
+    const fmtPct = (v, sign = false) => `${sign && v > 0 ? '+' : ''}${(v * 100).toFixed(1)}%`;
+
+    function renderFactorBars(scores) {
+      const items = [
+        { name: '长期趋势动量 (45%)', val: scores.trend },
+        { name: '科技相对标普强弱 (25%)', val: scores.rel_spx },
+        { name: '60日持续波动体制 (15%)', val: scores.vol_regime },
+        { name: '信用趋势与利率冲击 (15%)', val: scores.macro },
+      ];
+      const container = document.getElementById('factorBars');
+      container.innerHTML = items.map(it => {
+        const val = it.val ?? 0;
+        const pct = Math.min(100, Math.abs(val) * 100);
+        const isPos = val >= 0;
+        const barColor = isPos ? 'bg-emerald-500' : 'bg-rose-500';
+        const textColor = isPos ? 'text-emerald-400' : 'text-rose-400';
+        return `
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-gray-300">${it.name}</span>
+              <span class="mono font-semibold ${textColor}">${val >= 0 ? '+' : ''}${val.toFixed(2)}</span>
+            </div>
+            <div class="w-full h-2 bg-gray-800 rounded-full overflow-hidden flex">
+              <div class="w-1/2 flex justify-end">${!isPos ? `<div class="${barColor} h-full" style="width:${pct}%"></div>` : ''}</div>
+              <div class="w-1/2 flex justify-start">${isPos ? `<div class="${barColor} h-full" style="width:${pct}%"></div>` : ''}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function renderGates(gates) {
+      const defs = [
+        { key: 'secular_bull', label: '长期牛市底仓 (+85%)', activeCls: 'bg-emerald-900/50 text-emerald-300 border-emerald-700/60' },
+        { key: 'secular_bear', label: '长期熊市防诱多封顶 (+5%)', activeCls: 'bg-rose-900/50 text-rose-300 border-rose-700/60' },
+        { key: 'vix_capitulation', label: 'VIX>40 恐慌平空保护', activeCls: 'bg-amber-900/50 text-amber-300 border-amber-700/60' },
+      ];
+      document.getElementById('gateBadges').innerHTML = defs.map(d => {
+        const on = gates && gates[d.key];
+        const cls = on ? d.activeCls : 'bg-gray-900 text-gray-500 border-gray-800';
+        return `<span class="px-2 py-0.5 rounded border ${cls}">${on ? '● ' : '○ '}${d.label}</span>`;
+      }).join('');
+    }
+
+    function renderMetricsTable(metricSet) {
+      const mRows = [
+        ['量化敞口策略 v2.0 (仅Beta)', metricSet.strategy, true],
+        ['科技+半导体基准 (70/30)', metricSet.bench, false],
+        ['QQQ (100% 满仓)', metricSet.qqq, false],
+      ];
+      document.getElementById('metricsBody').innerHTML = mRows.map(([name, m, hl]) => `
+        <tr class="${hl ? 'text-sky-400 font-semibold' : 'text-gray-300'}">
+          <td class="py-2.5 font-sans">${name}</td>
+          <td class="py-2.5 text-right">${fmtPct(m.cagr)}</td>
+          <td class="py-2.5 text-right">${fmtPct(m.vol)}</td>
+          <td class="py-2.5 text-right">${m.sharpe.toFixed(2)}</td>
+          <td class="py-2.5 text-right text-rose-400">${fmtPct(m.mdd)}</td>
+          <td class="py-2.5 text-right">${m.calmar.toFixed(2)}</td>
+        </tr>`).join('');
+    }
+
+    function updateHedgeCalc() {
+      if (!GLOBAL_DATA) return;
+      const latest = GLOBAL_DATA.latest;
+      const nav = parseFloat(document.getElementById('inNav').value) || 0;
+      const lPct = (parseFloat(document.getElementById('inLongPct').value) || 0) / 100;
+      const lBeta = parseFloat(document.getElementById('inLongBeta').value) || 1;
+      const sPct = (parseFloat(document.getElementById('inShortPct').value) || 0) / 100;
+      const sBeta = parseFloat(document.getElementById('inShortBeta').value) || 1;
+
+      const curBetaNet = lPct * lBeta - sPct * sBeta;
+      const gap = latest.exec_net - curBetaNet;
+      const dollarGap = gap * nav;
+
+      document.getElementById('outCurBetaNet').textContent = fmtPct(curBetaNet, true);
+      const gapEl = document.getElementById('outGap');
+      gapEl.textContent = fmtPct(gap, true);
+      gapEl.className = `mono font-bold ${gap >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+      document.getElementById('outDollarGap').textContent =
+        `${dollarGap >= 0 ? '+' : '-'}$${Math.abs(dollarGap).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
+      const actionWord = dollarGap >= 0 ? '买入 / 平空' : '做空 / 减仓';
+      const qqqShares = Math.round(Math.abs(dollarGap) / latest.qqq_price);
+      const mnqNotional = latest.ndx_price * 2;
+      const mnqContracts = (Math.abs(dollarGap) / mnqNotional).toFixed(1);
+
+      document.getElementById('outQQQ').textContent = `${actionWord} ${qqqShares.toLocaleString()} 股 QQQ`;
+      document.getElementById('outMNQ').textContent = `${actionWord} ${mnqContracts} 手 MNQ`;
+    }
+
+    function renderMajorEvents(events) {
+      const list = [...(events || [])].reverse();
+      document.getElementById('cntAll').textContent = list.length;
+      document.getElementById('cntAdd').textContent = list.filter(e => e.action === '重大加仓').length;
+      document.getElementById('cntCut').textContent = list.filter(e => e.action === '重大减仓').length;
+
+      const filtered = CURRENT_EVENT_FILTER === 'all'
+        ? list
+        : list.filter(e => e.action === CURRENT_EVENT_FILTER);
+
+      document.getElementById('eventsBody').innerHTML = filtered.map(ev => {
+        const isAdd = ev.action === '重大加仓';
+        const badge = isAdd
+          ? '<span class="px-2 py-0.5 rounded bg-emerald-900/50 text-emerald-300 border border-emerald-700/50 text-xs font-sans">重大加仓</span>'
+          : '<span class="px-2 py-0.5 rounded bg-rose-900/50 text-rose-300 border border-rose-700/50 text-xs font-sans">重大减仓</span>';
+        return `
+          <tr class="text-gray-300 hover:bg-gray-800/40">
+            <td class="py-2">${ev.date}</td>
+            <td class="py-2">${badge}</td>
+            <td class="py-2 text-right">${fmtPct(ev.net_before, true)}</td>
+            <td class="py-2 text-right font-semibold text-white">${fmtPct(ev.net_after, true)}</td>
+            <td class="py-2 text-right ${isAdd ? 'text-emerald-400' : 'text-rose-400'}">${fmtPct(ev.delta_net, true)}</td>
+            <td class="py-2 text-right">${fmtPct(ev.gross_after)}</td>
+            <td class="py-2 text-right">${ev.score_S >= 0 ? '+' : ''}${ev.score_S.toFixed(2)}</td>
+            <td class="py-2 text-right font-sans text-gray-300">${ev.main_driver}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    function renderCharts(series) {
+      new Chart(document.getElementById('equityChart'), {
+        type: 'line',
+        data: {
+          labels: series.dates,
+          datasets: [
+            { label: '量化敞口策略 v2.0 (仅Beta层)', data: series.strat_nav, borderColor: '#38bdf8', borderWidth: 2, pointRadius: 0 },
+            { label: '科技+半导体基准 (70/30)', data: series.bench_nav, borderColor: '#64748b', borderWidth: 1.5, pointRadius: 0 },
+            { label: 'QQQ (100% 满仓)', data: series.qqq_nav, borderColor: '#475569', borderDash: [4, 4], borderWidth: 1.2, pointRadius: 0 },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            y: { type: 'logarithmic', grid: { color: '#1f2937' }, ticks: { color: '#9ca3af' } },
+            x: { grid: { display: false }, ticks: { color: '#9ca3af', maxTicksLimit: 12 } }
+          },
+          plugins: { legend: { labels: { color: '#e2e8f0' } } }
+        }
+      });
+
+      new Chart(document.getElementById('ddChart'), {
+        type: 'line',
+        data: {
+          labels: series.dates,
+          datasets: [
+            { label: '策略回撤 (%)', data: series.strat_dd, borderColor: '#38bdf8', backgroundColor: 'rgba(56, 189, 248, 0.14)', fill: true, borderWidth: 1.5, pointRadius: 0 },
+            { label: '基准回撤 (%)', data: series.bench_dd, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.08)', fill: true, borderWidth: 1.2, pointRadius: 0 },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af', callback: v => v + '%' } },
+            x: { grid: { display: false }, ticks: { color: '#9ca3af', maxTicksLimit: 12 } }
+          },
+          plugins: { legend: { labels: { color: '#e2e8f0' } } }
+        }
+      });
+
+      new Chart(document.getElementById('netChart'), {
+        type: 'line',
+        data: {
+          labels: series.dates,
+          datasets: [{
+            label: '动态 Target Net Exposure (%)',
+            data: series.exec_net,
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, 0.12)',
+            fill: true, borderWidth: 1.5, pointRadius: 0
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: {
+            y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af', callback: v => v + '%' } },
+            x: { grid: { display: false }, ticks: { color: '#9ca3af', maxTicksLimit: 12 } }
+          },
+          plugins: { legend: { labels: { color: '#e2e8f0' } } }
+        }
+      });
+    }
+
+    async function init() {
+      try {
+        const res = await fetch(`./data/latest_data.json?t=${Date.now()}`);
+        if (!res.ok) throw new Error('尚未生成 data/latest_data.json，请先运行 update_data.py 或在 GitHub Actions 中触发 Workflow。');
+        const data = await res.json();
+        GLOBAL_DATA = data;
+        const l = data.latest;
+
+        if (data.model_version) document.getElementById('modelBadge').textContent = data.model_version;
+        document.getElementById('latestDate').textContent = l.date;
+        if (data.backtest_range) {
+          document.getElementById('btRange').textContent = `${data.backtest_range.start} ~ ${data.backtest_range.end}`;
+          document.getElementById('turnoverVal').textContent = `${data.backtest_range.annual_turnover.toFixed(2)}x`;
+          document.getElementById('rebalCount').textContent = data.backtest_range.rebalance_count;
+        }
+        document.getElementById('updatedAt').textContent = data.updated_at_utc;
+        document.getElementById('regimeLabel').textContent = l.regime.label;
+        document.getElementById('regimeLabel').style.color = l.regime.color;
+        document.getElementById('regimeAction').textContent = l.regime.action;
+
+        document.getElementById('scoreS').textContent = (l.S >= 0 ? '+' : '') + l.S.toFixed(2);
+        document.getElementById('scoreS').style.color = l.regime.color;
+        document.getElementById('scoreSRaw').textContent = l.S_raw != null ? ((l.S_raw >= 0 ? '+' : '') + l.S_raw.toFixed(2)) : '--';
+        document.getElementById('vixVal').textContent = l.vix.toFixed(2);
+        document.getElementById('us10yVal').textContent = l.us10y.toFixed(2);
+
+        document.getElementById('targetNet').textContent = fmtPct(l.exec_net, true);
+        document.getElementById('rawTargetNet').textContent = fmtPct(l.target_net ?? l.exec_net, true);
+        document.getElementById('refLong').textContent = fmtPct(l.target_long);
+        document.getElementById('refShort').textContent = fmtPct(l.target_short);
+        document.getElementById('targetGross').textContent = fmtPct(l.target_gross);
+        const rv60Text = l.realized_vol_60d != null ? ` / ${fmtPct(l.realized_vol_60d)}` : '';
+        document.getElementById('realizedVol').textContent = `${fmtPct(l.realized_vol_20d)}${rv60Text}`;
+        document.getElementById('qqqPrice').textContent = l.qqq_price.toFixed(2);
+        document.getElementById('ndxPrice').textContent = l.ndx_price.toFixed(0);
+
+        renderFactorBars(l.scores);
+        renderGates(l.gates);
+        updateHedgeCalc();
+        renderCharts(data.series);
+        renderMajorEvents(data.major_events);
+        renderMetricsTable(data.metrics);
+
+        document.getElementById('crisesBody').innerHTML = data.crises.map(c => `
+          <tr class="text-gray-300">
+            <td class="py-2.5 font-sans">${c.name}</td>
+            <td class="py-2.5 text-right ${c.bench_ret >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${fmtPct(c.bench_ret, true)}</td>
+            <td class="py-2.5 text-right font-semibold ${c.strat_ret >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${fmtPct(c.strat_ret, true)}</td>
+            <td class="py-2.5 text-right text-amber-400">${fmtPct(c.avg_net, true)}</td>
+          </tr>`).join('');
+
+      } catch (err) {
+        const banner = document.getElementById('statusBanner');
+        banner.textContent = err.message;
+        banner.classList.remove('hidden');
+      }
+    }
+
+    ['inNav', 'inLongPct', 'inLongBeta', 'inShortPct', 'inShortBeta'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updateHedgeCalc);
+    });
+    document.querySelectorAll('.ev-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.ev-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        CURRENT_EVENT_FILTER = btn.dataset.filter;
+        if (GLOBAL_DATA) renderMajorEvents(GLOBAL_DATA.major_events);
+      });
+    });
+    document.getElementById('btnFullM').addEventListener('click', () => {
+      document.getElementById('btnFullM').classList.add('active');
+      document.getElementById('btnOosM').classList.remove('active');
+      if (GLOBAL_DATA) renderMetricsTable(GLOBAL_DATA.metrics);
+    });
+    document.getElementById('btnOosM').addEventListener('click', () => {
+      document.getElementById('btnOosM').classList.add('active');
+      document.getElementById('btnFullM').classList.remove('active');
+      if (GLOBAL_DATA && GLOBAL_DATA.oos_metrics) renderMetricsTable(GLOBAL_DATA.oos_metrics);
+    });
+    init();
+  </script>
+</body>
+</html>

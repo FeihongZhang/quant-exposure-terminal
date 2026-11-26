@@ -1,0 +1,41 @@
+name: Daily Quant Exposure Update
+
+on:
+  schedule:
+    # 周一至周五 UTC 19:30 (美东夏令时 15:30) 与 UTC 20:30 (美东冬令时 15:30)
+    - cron: '30 19 * * 1-5'
+    - cron: '30 20 * * 1-5'
+  workflow_dispatch: # 允许在 GitHub 页面手动一键触发
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run quant exposure script
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+        run: python update_data.py
+
+      - name: Commit and push updated JSON
+        run: |
+          git config user.name "Quant Bot"
+          git config user.email "quant-bot@users.noreply.github.com"
+          git add data/latest_data.json
+          git diff --staged --quiet || git commit -m "chore: update quant exposure data"
+          git push
