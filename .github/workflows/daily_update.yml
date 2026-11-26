@@ -2,9 +2,9 @@ name: Daily Quant Exposure Update
 
 on:
   schedule:
-    # 周一至周五 UTC 19:30 (美东夏令时 15:30) 与 UTC 20:30 (美东冬令时 15:30)
-    - cron: '30 19 * * 1-5'
-    - cron: '30 20 * * 1-5'
+    # 周二至周六 UTC 00:15（对应美东周一至周五盘后：冬令时 19:15 / 夏令时 20:15；北京时间早 08:15）
+    # 确保美股正式收盘价与 VWEHX/VFITX 债基当日净值全部入库
+    - cron: '15 0 * * 2-6'
   workflow_dispatch: # 允许在 GitHub 页面手动一键触发
 
 permissions:
