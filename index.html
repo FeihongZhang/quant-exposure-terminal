@@ -5,12 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tech/AI 量化敞口管理终端 v2.0</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
   <style>
     body { background-color: #0b0f19; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     .card { background-color: #111827; border: 1px solid #1f2937; border-radius: 12px; }
     .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     .filter-btn.active { background-color: #2563eb; color: #ffffff; border-color: #3b82f6; }
+    .dual-range-wrap { position: relative; height: 28px; display: flex; align-items: center; }
+    .dual-range-track { position: absolute; left: 0; right: 0; height: 6px; background: #1f2937; border-radius: 999px; }
+    .dual-range-fill { position: absolute; height: 6px; background: linear-gradient(90deg, #f59e0b, #38bdf8); border-radius: 999px; cursor: grab; }
+    .dual-range-fill:active { cursor: grabbing; }
+    .dual-range-input {
+      position: absolute; left: 0; width: 100%; margin: 0;
+      -webkit-appearance: none; appearance: none; background: transparent; pointer-events: none;
+    }
+    .dual-range-input::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none; pointer-events: auto;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #f8fafc; border: 2px solid #f59e0b; cursor: ew-resize;
+      box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.9);
+    }
+    .dual-range-input::-moz-range-thumb {
+      pointer-events: auto; width: 16px; height: 16px; border-radius: 50%;
+      background: #f8fafc; border: 2px solid #f59e0b; cursor: ew-resize;
+    }
   </style>
 </head>
 <body class="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -130,15 +150,71 @@
     </div>
   </section>
 
-  <!-- Charts -->
+  <!-- Equity & Drawdown Charts -->
   <section class="card p-5 space-y-6">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-      <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">1999–至今 历史回测净值、回撤与动态 Net 曲线（仅 Beta 层）</h2>
+      <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">1999–至今 历史回测净值与回撤对比曲线（仅 Beta 层）</h2>
       <div class="text-xs text-gray-400 mono">年化换手率：<span id="turnoverVal">--</span> | 总调仓：<span id="rebalCount">--</span> 次</div>
     </div>
     <div class="h-80"><canvas id="equityChart"></canvas></div>
     <div class="h-44"><canvas id="ddChart"></canvas></div>
-    <div class="h-44"><canvas id="netChart"></canvas></div>
+  </section>
+
+  <!-- Interactive Zoomable & Pannable Daily Net Exposure Chart -->
+  <section id="netChartSection" class="card p-5 space-y-4">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">动态 Target Net Exposure（日频精确切换时点 · 支持滚轮缩放与拖动）</h2>
+        <p class="text-xs text-gray-400 mt-1">
+          鼠标滚轮缩放横轴 · 左键拖拽左右平移（或切换框选放大）· 放大后自动高亮每次精确调仓切换点 · 双击图表重置
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 text-xs">
+        <button id="btnModePan" class="filter-btn active px-2.5 py-1 rounded border border-gray-700 text-gray-300" title="左键拖动平移横轴">拖动平移</button>
+        <button id="btnModeBox" class="filter-btn px-2.5 py-1 rounded border border-gray-700 text-gray-300" title="左键框选区间放大">框选放大</button>
+        <button id="btnToggleGross" class="px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">叠加 Gross</button>
+        <button id="btnZoomIn" class="px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800 mono" title="放大">+</button>
+        <button id="btnZoomOut" class="px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800 mono" title="缩小">−</button>
+        <button id="btnResetZoom" class="px-2.5 py-1 rounded border border-amber-600/60 text-amber-300 hover:bg-amber-900/30">重置全部</button>
+      </div>
+    </div>
+
+    <!-- Quick Range Presets & Current Window Readout -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 pb-1">
+      <div class="flex flex-wrap gap-1.5 text-xs" id="netRangePresets">
+        <button data-preset="6m" class="preset-btn px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">近6月</button>
+        <button data-preset="1y" class="preset-btn px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">近1年</button>
+        <button data-preset="3y" class="preset-btn px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">近3年</button>
+        <button data-preset="2022" class="preset-btn px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">2022熊市</button>
+        <button data-preset="2020" class="preset-btn px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">2020疫情</button>
+        <button data-preset="2008" class="preset-btn px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">2008危机</button>
+        <button data-preset="2000" class="preset-btn px-2.5 py-1 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">2000泡沫</button>
+        <button data-preset="all" class="preset-btn filter-btn active px-2.5 py-1 rounded border border-gray-700 text-gray-300">全部</button>
+      </div>
+      <div class="text-xs text-amber-300 mono">
+        当前视窗：<span id="netWindowLabel">--</span>
+      </div>
+    </div>
+
+    <!-- Net Chart Canvas -->
+    <div class="h-72 md:h-80 cursor-grab active:cursor-grabbing" id="netChartWrap">
+      <canvas id="netChart"></canvas>
+    </div>
+
+    <!-- Synchronized Horizontal Range Scrubber -->
+    <div class="pt-1 space-y-1">
+      <div class="dual-range-wrap" id="rangeScrubber">
+        <div class="dual-range-track"></div>
+        <div class="dual-range-fill" id="rangeFill"></div>
+        <input id="rangeStart" type="range" min="0" max="100" value="0" class="dual-range-input" aria-label="起始日期滑块" />
+        <input id="rangeEnd" type="range" min="0" max="100" value="100" class="dual-range-input" aria-label="结束日期滑块" />
+      </div>
+      <div class="flex justify-between text-[11px] text-gray-500 mono">
+        <span id="scrubberMinDate">--</span>
+        <span class="text-gray-400 font-sans">拖动左右端点缩放窗口，或拖动中间高亮条平移时间轴</span>
+        <span id="scrubberMaxDate">--</span>
+      </div>
+    </div>
   </section>
 
   <!-- Performance & Crises Tables -->
@@ -191,7 +267,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div>
         <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">历次重大加减仓精确日志（5日 |ΔNet| ≥ 25%）</h2>
-        <p class="text-xs text-gray-400 mt-1">按时间倒序展示，便于复盘每次关键拐点与主导因子</p>
+        <p class="text-xs text-gray-400 mt-1">按时间倒序展示 · 点击任意一行可在上方动态 Net 图中自动定位并放大该切换时点</p>
       </div>
       <div class="flex items-center gap-2 text-xs">
         <button data-filter="all" class="ev-filter-btn filter-btn active px-3 py-1 rounded border border-gray-700 text-gray-300">全部 (<span id="cntAll">0</span>)</button>
@@ -221,7 +297,37 @@
   <script>
     let GLOBAL_DATA = null;
     let CURRENT_EVENT_FILTER = 'all';
+    let NET_CHART = null;
+    let NET_DATES = [];
+    let NET_VALUES = [];
+    let NET_GROSS = [];
+    let NET_SCORES = [];
+    let NET_SWITCH_FLAGS = [];
+    let SHOW_GROSS_OVERLAY = false;
+    const MIN_VISIBLE_DAYS = 20;
+
     const fmtPct = (v, sign = false) => `${sign && v > 0 ? '+' : ''}${(v * 100).toFixed(1)}%`;
+
+    // Custom Chart.js plugin: crisp dashed 0% reference line on netChart
+    const zeroLinePlugin = {
+      id: 'zeroLinePlugin',
+      afterDatasetsDraw(chart) {
+        if (chart.canvas.id !== 'netChart') return;
+        const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+        if (!y) return;
+        const yZero = y.getPixelForValue(0);
+        if (yZero < chart.chartArea.top || yZero > chart.chartArea.bottom) return;
+        ctx.save();
+        ctx.beginPath();
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)';
+        ctx.lineWidth = 1;
+        ctx.moveTo(left, yZero);
+        ctx.lineTo(right, yZero);
+        ctx.stroke();
+        ctx.restore();
+      }
+    };
 
     function renderFactorBars(scores) {
       const items = [
@@ -311,6 +417,86 @@
       document.getElementById('outMNQ').textContent = `${actionWord} ${mnqContracts} 手 MNQ`;
     }
 
+    function syncNetRangeUI() {
+      if (!NET_CHART || !NET_DATES.length) return;
+      const maxIdx = NET_DATES.length - 1;
+      const xScale = NET_CHART.scales.x;
+      const minI = Math.max(0, Math.min(maxIdx, Math.round(xScale.min)));
+      const maxI = Math.max(minI, Math.min(maxIdx, Math.round(xScale.max)));
+      const span = maxI - minI + 1;
+
+      document.getElementById('rangeStart').value = minI;
+      document.getElementById('rangeEnd').value = maxI;
+
+      const leftPct = (minI / maxIdx) * 100;
+      const rightPct = (maxI / maxIdx) * 100;
+      const fill = document.getElementById('rangeFill');
+      fill.style.left = `${leftPct}%`;
+      fill.style.width = `${Math.max(0.8, rightPct - leftPct)}%`;
+
+      // Count switches inside current visible window
+      let switches = 0;
+      for (let i = minI; i <= maxI; i++) {
+        if (NET_SWITCH_FLAGS[i]) switches++;
+      }
+      document.getElementById('netWindowLabel').textContent =
+        `${NET_DATES[minI]} ~ ${NET_DATES[maxI]}（${span} 交易日 · ${switches} 次调仓切换）`;
+    }
+
+    function setNetWindow(minIdx, maxIdx, clearPresetActive = true) {
+      if (!NET_CHART || !NET_DATES.length) return;
+      const totalMax = NET_DATES.length - 1;
+      let s = Math.max(0, Math.min(totalMax - MIN_VISIBLE_DAYS, Math.round(minIdx)));
+      let e = Math.max(s + MIN_VISIBLE_DAYS, Math.min(totalMax, Math.round(maxIdx)));
+      if (e - s < MIN_VISIBLE_DAYS) {
+        s = Math.max(0, e - MIN_VISIBLE_DAYS);
+      }
+      NET_CHART.zoomScale('x', { min: s, max: e }, 'none');
+      syncNetRangeUI();
+      if (clearPresetActive) {
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('filter-btn', 'active'));
+      }
+    }
+
+    function findDateIndex(targetDateStr) {
+      let lo = 0, hi = NET_DATES.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (NET_DATES[mid] < targetDateStr) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo;
+    }
+
+    function jumpToEventDate(dateStr) {
+      if (!NET_DATES.length) return;
+      const idx = findDateIndex(dateStr);
+      const pad = 65;
+      setNetWindow(Math.max(0, idx - pad), Math.min(NET_DATES.length - 1, idx + pad), true);
+      document.getElementById('netChartSection').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function applyNetPreset(preset) {
+      if (!NET_DATES.length) return;
+      const totalMax = NET_DATES.length - 1;
+      let s = 0, e = totalMax;
+      if (preset === '6m') { s = Math.max(0, totalMax - 126); e = totalMax; }
+      else if (preset === '1y') { s = Math.max(0, totalMax - 252); e = totalMax; }
+      else if (preset === '3y') { s = Math.max(0, totalMax - 756); e = totalMax; }
+      else if (preset === '2022') { s = findDateIndex('2021-10-01'); e = findDateIndex('2023-06-30'); }
+      else if (preset === '2020') { s = findDateIndex('2019-11-01'); e = findDateIndex('2020-12-31'); }
+      else if (preset === '2008') { s = findDateIndex('2007-08-01'); e = findDateIndex('2009-12-31'); }
+      else if (preset === '2000') { s = findDateIndex('2000-01-01'); e = findDateIndex('2003-09-30'); }
+      else { s = 0; e = totalMax; }
+
+      setNetWindow(s, e, false);
+      document.querySelectorAll('.preset-btn').forEach(b => {
+        const on = b.dataset.preset === preset;
+        b.classList.toggle('filter-btn', on);
+        b.classList.toggle('active', on);
+      });
+    }
+
     function renderMajorEvents(events) {
       const list = [...(events || [])].reverse();
       document.getElementById('cntAll').textContent = list.length;
@@ -327,8 +513,8 @@
           ? '<span class="px-2 py-0.5 rounded bg-emerald-900/50 text-emerald-300 border border-emerald-700/50 text-xs font-sans">重大加仓</span>'
           : '<span class="px-2 py-0.5 rounded bg-rose-900/50 text-rose-300 border border-rose-700/50 text-xs font-sans">重大减仓</span>';
         return `
-          <tr class="text-gray-300 hover:bg-gray-800/40">
-            <td class="py-2">${ev.date}</td>
+          <tr data-date="${ev.date}" title="点击定位到上方动态 Net 图" class="event-row cursor-pointer text-gray-300 hover:bg-sky-900/30 transition-colors">
+            <td class="py-2 text-sky-300 underline decoration-sky-700/60 underline-offset-2">${ev.date}</td>
             <td class="py-2">${badge}</td>
             <td class="py-2 text-right">${fmtPct(ev.net_before, true)}</td>
             <td class="py-2 text-right font-semibold text-white">${fmtPct(ev.net_after, true)}</td>
@@ -338,9 +524,14 @@
             <td class="py-2 text-right font-sans text-gray-300">${ev.main_driver}</td>
           </tr>`;
       }).join('');
+
+      document.querySelectorAll('.event-row').forEach(tr => {
+        tr.addEventListener('click', () => jumpToEventDate(tr.dataset.date));
+      });
     }
 
-    function renderCharts(series) {
+    function renderCharts(data) {
+      const series = data.series;
       new Chart(document.getElementById('equityChart'), {
         type: 'line',
         data: {
@@ -382,26 +573,255 @@
         }
       });
 
-      new Chart(document.getElementById('netChart'), {
+      // Daily Net Exposure Chart with X-axis pan & zoom
+      const dn = data.daily_net || {
+        dates: series.dates,
+        exec_net: series.exec_net,
+        target_gross: series.exec_net.map(() => null),
+        S: series.exec_net.map(() => null),
+      };
+      NET_DATES = dn.dates;
+      NET_VALUES = dn.exec_net;
+      NET_GROSS = dn.target_gross || [];
+      NET_SCORES = dn.S || [];
+      NET_SWITCH_FLAGS = NET_VALUES.map((v, i) => i > 0 && Math.abs(v - NET_VALUES[i - 1]) >= 0.05);
+
+      const maxIdx = NET_DATES.length - 1;
+      const startInput = document.getElementById('rangeStart');
+      const endInput = document.getElementById('rangeEnd');
+      startInput.min = 0; startInput.max = maxIdx; startInput.value = 0;
+      endInput.min = 0; endInput.max = maxIdx; endInput.value = maxIdx;
+      document.getElementById('scrubberMinDate').textContent = NET_DATES[0];
+      document.getElementById('scrubberMaxDate').textContent = NET_DATES[maxIdx];
+
+      NET_CHART = new Chart(document.getElementById('netChart'), {
         type: 'line',
+        plugins: [zeroLinePlugin],
         data: {
-          labels: series.dates,
-          datasets: [{
-            label: '动态 Target Net Exposure (%)',
-            data: series.exec_net,
-            borderColor: '#f59e0b',
-            backgroundColor: 'rgba(245, 158, 11, 0.12)',
-            fill: true, borderWidth: 1.5, pointRadius: 0
-          }]
+          labels: NET_DATES,
+          datasets: [
+            {
+              label: '动态 Target Net Exposure (%)',
+              data: NET_VALUES,
+              stepped: 'after',
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245, 158, 11, 0.14)',
+              fill: { target: { value: 0 }, above: 'rgba(16, 185, 129, 0.14)', below: 'rgba(244, 63, 94, 0.22)' },
+              borderWidth: 1.8,
+              pointRadius: (ctx) => {
+                const i = ctx.dataIndex;
+                if (!NET_SWITCH_FLAGS[i]) return 0;
+                const xScale = ctx.chart.scales.x;
+                const visible = xScale ? (xScale.max - xScale.min) : maxIdx;
+                return visible <= 450 ? 4.5 : (visible <= 1200 ? 2.5 : 0);
+              },
+              pointHoverRadius: 6,
+              pointBackgroundColor: (ctx) => {
+                const i = ctx.dataIndex;
+                if (i > 0 && NET_VALUES[i] > NET_VALUES[i - 1]) return '#10b981';
+                if (i > 0 && NET_VALUES[i] < NET_VALUES[i - 1]) return '#f43f5e';
+                return '#f59e0b';
+              },
+              pointBorderColor: '#0b0f19',
+              pointBorderWidth: 1.2,
+            },
+            {
+              label: 'Target Gross 上限 (%)',
+              data: NET_GROSS,
+              borderColor: 'rgba(56, 189, 248, 0.75)',
+              borderDash: [4, 3],
+              borderWidth: 1.3,
+              pointRadius: 0,
+              hidden: !SHOW_GROSS_OVERLAY,
+            }
+          ]
         },
         options: {
-          responsive: true, maintainAspectRatio: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          interaction: { mode: 'index', intersect: false },
           scales: {
-            y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af', callback: v => v + '%' } },
-            x: { grid: { display: false }, ticks: { color: '#9ca3af', maxTicksLimit: 12 } }
+            y: {
+              min: -35,
+              max: 160,
+              grid: { color: '#1f2937' },
+              ticks: { color: '#9ca3af', callback: v => v + '%' }
+            },
+            x: {
+              min: 0,
+              max: maxIdx,
+              grid: { color: 'rgba(31, 41, 55, 0.45)' },
+              ticks: { color: '#9ca3af', maxTicksLimit: 12, autoSkip: true }
+            }
           },
-          plugins: { legend: { labels: { color: '#e2e8f0' } } }
+          plugins: {
+            legend: { labels: { color: '#e2e8f0' } },
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.95)',
+              borderColor: '#334155',
+              borderWidth: 1,
+              titleColor: '#f8fafc',
+              bodyColor: '#e2e8f0',
+              callbacks: {
+                afterBody: (items) => {
+                  if (!items.length) return [];
+                  const idx = items[0].dataIndex;
+                  const lines = [];
+                  if (idx > 0 && NET_SWITCH_FLAGS[idx]) {
+                    const prev = NET_VALUES[idx - 1];
+                    const cur = NET_VALUES[idx];
+                    const delta = cur - prev;
+                    lines.push(`★ 调仓切换: ${prev >= 0 ? '+' : ''}${prev.toFixed(1)}% → ${cur >= 0 ? '+' : ''}${cur.toFixed(1)}% (${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%)`);
+                  }
+                  if (NET_GROSS[idx] != null && !SHOW_GROSS_OVERLAY) {
+                    lines.push(`Target Gross: ${NET_GROSS[idx].toFixed(1)}%`);
+                  }
+                  if (NET_SCORES[idx] != null) {
+                    const s = NET_SCORES[idx];
+                    lines.push(`综合得分 S (12D EMA): ${s >= 0 ? '+' : ''}${s.toFixed(2)}`);
+                  }
+                  return lines;
+                }
+              }
+            },
+            zoom: {
+              limits: {
+                x: { min: 0, max: maxIdx, minRange: MIN_VISIBLE_DAYS }
+              },
+              pan: {
+                enabled: true,
+                mode: 'x',
+                threshold: 4,
+                onPan: syncNetRangeUI,
+                onPanComplete: syncNetRangeUI,
+              },
+              zoom: {
+                wheel: { enabled: true, speed: 0.12 },
+                pinch: { enabled: true },
+                drag: {
+                  enabled: false,
+                  backgroundColor: 'rgba(56, 189, 248, 0.18)',
+                  borderColor: 'rgba(56, 189, 248, 0.8)',
+                  borderWidth: 1,
+                },
+                mode: 'x',
+                onZoom: syncNetRangeUI,
+                onZoomComplete: () => {
+                  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('filter-btn', 'active'));
+                  syncNetRangeUI();
+                },
+              }
+            }
+          }
         }
+      });
+
+      // Double-click canvas to reset zoom
+      document.getElementById('netChart').addEventListener('dblclick', () => applyNetPreset('all'));
+
+      // Dual range slider listeners
+      startInput.addEventListener('input', () => {
+        let s = parseInt(startInput.value, 10);
+        let e = parseInt(endInput.value, 10);
+        if (e - s < MIN_VISIBLE_DAYS) {
+          s = Math.max(0, e - MIN_VISIBLE_DAYS);
+          startInput.value = s;
+        }
+        setNetWindow(s, e, true);
+      });
+      endInput.addEventListener('input', () => {
+        let s = parseInt(startInput.value, 10);
+        let e = parseInt(endInput.value, 10);
+        if (e - s < MIN_VISIBLE_DAYS) {
+          e = Math.min(maxIdx, s + MIN_VISIBLE_DAYS);
+          endInput.value = e;
+        }
+        setNetWindow(s, e, true);
+      });
+
+      // Drag middle highlight bar to pan smoothly
+      const fillEl = document.getElementById('rangeFill');
+      const scrubberEl = document.getElementById('rangeScrubber');
+      let draggingFill = false, dragStartX = 0, initStart = 0, initEnd = 0;
+      fillEl.addEventListener('mousedown', (ev) => {
+        draggingFill = true;
+        dragStartX = ev.clientX;
+        initStart = parseInt(startInput.value, 10);
+        initEnd = parseInt(endInput.value, 10);
+        ev.preventDefault();
+      });
+      window.addEventListener('mousemove', (ev) => {
+        if (!draggingFill) return;
+        const rect = scrubberEl.getBoundingClientRect();
+        const deltaRatio = (ev.clientX - dragStartX) / Math.max(1, rect.width);
+        const deltaIdx = Math.round(deltaRatio * maxIdx);
+        const span = initEnd - initStart;
+        let ns = Math.max(0, Math.min(maxIdx - span, initStart + deltaIdx));
+        let ne = ns + span;
+        setNetWindow(ns, ne, true);
+      });
+      window.addEventListener('mouseup', () => { draggingFill = false; });
+
+      syncNetRangeUI();
+    }
+
+    function bindNetToolbar() {
+      const btnPan = document.getElementById('btnModePan');
+      const btnBox = document.getElementById('btnModeBox');
+      const wrap = document.getElementById('netChartWrap');
+
+      btnPan.addEventListener('click', () => {
+        if (!NET_CHART) return;
+        NET_CHART.options.plugins.zoom.pan.enabled = true;
+        NET_CHART.options.plugins.zoom.zoom.drag.enabled = false;
+        NET_CHART.update('none');
+        btnPan.classList.add('active');
+        btnBox.classList.remove('active');
+        wrap.className = 'h-72 md:h-80 cursor-grab active:cursor-grabbing';
+      });
+
+      btnBox.addEventListener('click', () => {
+        if (!NET_CHART) return;
+        NET_CHART.options.plugins.zoom.pan.enabled = false;
+        NET_CHART.options.plugins.zoom.zoom.drag.enabled = true;
+        NET_CHART.update('none');
+        btnBox.classList.add('active');
+        btnPan.classList.remove('active');
+        wrap.className = 'h-72 md:h-80 cursor-crosshair';
+      });
+
+      document.getElementById('btnToggleGross').addEventListener('click', (ev) => {
+        if (!NET_CHART) return;
+        SHOW_GROSS_OVERLAY = !SHOW_GROSS_OVERLAY;
+        NET_CHART.data.datasets[1].hidden = !SHOW_GROSS_OVERLAY;
+        NET_CHART.update('none');
+        ev.target.classList.toggle('filter-btn', SHOW_GROSS_OVERLAY);
+        ev.target.classList.toggle('active', SHOW_GROSS_OVERLAY);
+      });
+
+      document.getElementById('btnZoomIn').addEventListener('click', () => {
+        if (!NET_CHART) return;
+        const xScale = NET_CHART.scales.x;
+        const s = xScale.min, e = xScale.max;
+        const span = e - s;
+        const shrink = Math.max(5, Math.round(span * 0.2));
+        setNetWindow(s + shrink, e - shrink, true);
+      });
+
+      document.getElementById('btnZoomOut').addEventListener('click', () => {
+        if (!NET_CHART) return;
+        const xScale = NET_CHART.scales.x;
+        const s = xScale.min, e = xScale.max;
+        const span = e - s;
+        const expand = Math.max(10, Math.round(span * 0.25));
+        setNetWindow(s - expand, e + expand, true);
+      });
+
+      document.getElementById('btnResetZoom').addEventListener('click', () => applyNetPreset('all'));
+
+      document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => applyNetPreset(btn.dataset.preset));
       });
     }
 
@@ -444,7 +864,8 @@
         renderFactorBars(l.scores);
         renderGates(l.gates);
         updateHedgeCalc();
-        renderCharts(data.series);
+        renderCharts(data);
+        bindNetToolbar();
         renderMajorEvents(data.major_events);
         renderMetricsTable(data.metrics);
 

@@ -181,7 +181,9 @@ def download_close_data(tickers: list, start_date: str) -> pd.DataFrame:
         s = close[t].dropna()
         print(f"  {t:6s}: {s.index[0].strftime('%Y-%m-%d')} ~ {s.index[-1].strftime('%Y-%m-%d')} ({len(s)} rows)")
 
-    close = close.ffill().dropna()
+    # 严格以 QQQ 真实美股交易日历为基准，避免假期 VIX 单独报价产生虚拟交易日
+    qqq_dates = close["QQQ"].dropna().index
+    close = close.ffill().loc[qqq_dates].dropna()
     return close
 
 
@@ -469,11 +471,17 @@ def main():
             "strat_dd": [round(float(x * 100), 1) for x in weekly["strat_dd"]],
             "bench_dd": [round(float(x * 100), 1) for x in weekly["bench_dd"]],
         },
+        "daily_net": {
+            "dates": [d.strftime("%Y-%m-%d") for d in bt.index],
+            "exec_net": [round(float(x * 100), 1) for x in bt["exec_net"]],
+            "target_gross": [round(float(x * 100), 1) for x in bt["target_gross"]],
+            "S": [round(float(x), 2) for x in bt["S"]],
+        },
     }
 
     os.makedirs("data", exist_ok=True)
     with open("data/latest_data.json", "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+        json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
 
     print(
         f"\n=== v2.0 全周期回测绩效 ({bt.index[0].strftime('%Y-%m-%d')} ~ {latest_date}, 共 {len(bt)} 交易日) ==="
