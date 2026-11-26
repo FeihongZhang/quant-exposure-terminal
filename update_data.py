@@ -474,6 +474,11 @@ def main():
                 "trend": round(float(latest_row["score_trend"]), 3),
                 "lead": round(float(latest_row["score_lead"]), 3),
             },
+            "factor_details": {
+                "bench_vs_ma200_pct": round(float(bench_idx.iloc[-1] / ma200.iloc[-1] - 1.0), 4),
+                "ma50_vs_ma200_pct": round(float(ma50.iloc[-1] / ma200.iloc[-1] - 1.0), 4),
+                "rel_vs_ma150_pct": round(float(rel_spx.iloc[-1] / rel_ma150.iloc[-1] - 1.0), 4),
+            },
             "raw_net": round(float(latest_row["raw_net"]), 4),
             "target_net": round(float(latest_row["target_net"]), 4),
             "exec_net": round(float(latest_row["exec_net"]), 4),

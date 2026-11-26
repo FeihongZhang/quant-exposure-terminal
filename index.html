@@ -468,10 +468,41 @@
       }
     };
 
-    function renderFactorBars(scores) {
+    function getTrendLiveText(val, details) {
+      const p200 = details && details.bench_vs_ma200_pct != null ? fmtPct(details.bench_vs_ma200_pct, true) : '--';
+      const c50200 = details && details.ma50_vs_ma200_pct != null ? fmtPct(details.ma50_vs_ma200_pct, true) : '--';
+      const numStr = `基准偏离 200D 线 ${p200}、50D/200D 结构 ${c50200}。`;
+      if (val >= 0.45) return `${numStr}长期多头趋势强劲，全市场资金共识高度一致，支持高净多进攻。`;
+      if (val >= 0.15) return `${numStr}仍处于温和多头趋势上方，允许正常洗盘而不轻易降仓。`;
+      if (val >= -0.25) return `${numStr}得分贴近 0 轴，处于多空拉锯过渡区（高位转弱或底部筑底，尚未确认单边长熊）。`;
+      if (val >= -0.60) return `${numStr}价格与均线结构已明显转空，需防守控 Net、防止慢熊主跌段。`;
+      return `${numStr}长期趋势全面空头排列，属于典型的系统性慢熊格局，支持净空防御。`;
+    }
+
+    function getLeadLiveText(val, details) {
+      const r150 = details && details.rel_vs_ma150_pct != null ? fmtPct(details.rel_vs_ma150_pct, true) : '--';
+      const numStr = `Tech/^GSPC 偏离 150D 线 ${r150}。`;
+      if (val >= 0.45) return `${numStr}科技/AI 显著领涨标普 500，风险资金持续向主线抱团，顺风信号极强。`;
+      if (val >= 0.10) return `${numStr}科技相对大盘温和占优，板块资金面健康。`;
+      if (val >= -0.25) return `${numStr}科技与标普表现接近，风格未出现极端切换。`;
+      if (val >= -0.60) return `${numStr}科技开始明显跑输标普，资金有撤离转向防御板块迹象，需警惕风格转弱。`;
+      return `${numStr}科技大幅跑输标普，说明市场共识正剧烈撤离科技/半导体主线，是核心减仓预警信号。`;
+    }
+
+    function renderFactorBars(scores, details) {
       const items = [
-        { name: '绝对共识 · 科技长期趋势 (65%)', desc: '相对 200D 均线距离 + 50/200 均线结构', val: scores.trend },
-        { name: '相对共识 · 科技相对标普 (35%)', desc: 'Tech / ^GSPC 相对 150D 均线强弱', val: scores.lead },
+        {
+          name: '绝对共识 · 科技长期趋势 (65%)',
+          val: scores.trend,
+          live: getTrendLiveText(scores.trend ?? 0, details),
+          guide: '由「相对 200D 牛熊线距离 (60%) + 50D/200D 均线结构 (40%)」合成。代表全球机构资金用真金白银投票形成的绝对趋势：>+0.3 确认多头顺风，接近 0 为拉锯过渡，<-0.3 警示趋势破位。',
+        },
+        {
+          name: '相对共识 · 科技相对标普 (35%)',
+          val: scores.lead,
+          live: getLeadLiveText(scores.lead ?? 0, details),
+          guide: '衡量 Tech/^GSPC 相对 150D 均线的强弱。反映市场资金是在向 AI/科技集中还是撤向传统防御板块——27 年样本内外最稳定正向因子，常先于大盘指数发出见顶减仓信号。',
+        },
       ];
       const container = document.getElementById('factorBars');
       container.innerHTML = items.map(it => {
@@ -480,17 +511,21 @@
         const isPos = val >= 0;
         const barColor = isPos ? 'bg-emerald-500' : 'bg-rose-500';
         const textColor = isPos ? 'text-emerald-400' : 'text-rose-400';
+        const borderAccent = isPos ? 'border-emerald-500/70' : 'border-rose-500/70';
         return `
-          <div>
-            <div class="flex justify-between items-baseline text-xs mb-1">
-              <span class="text-gray-200 font-medium">${it.name}</span>
+          <div class="p-3 rounded-lg bg-gray-900/60 border border-gray-800/80 space-y-2">
+            <div class="flex justify-between items-baseline text-xs">
+              <span class="text-gray-100 font-semibold">${it.name}</span>
               <span class="mono font-bold text-sm ${textColor}">${val >= 0 ? '+' : ''}${val.toFixed(2)}</span>
             </div>
             <div class="w-full h-2.5 bg-gray-800 rounded-full overflow-hidden flex">
               <div class="w-1/2 flex justify-end">${!isPos ? `<div class="${barColor} h-full" style="width:${pct}%"></div>` : ''}</div>
               <div class="w-1/2 flex justify-start">${isPos ? `<div class="${barColor} h-full" style="width:${pct}%"></div>` : ''}</div>
             </div>
-            <div class="text-[11px] text-gray-500 mt-1">${it.desc}</div>
+            <div class="text-xs text-gray-200 bg-gray-950/70 rounded px-2.5 py-2 leading-relaxed border-l-2 ${borderAccent}">
+              <span class="text-gray-400">当前解读：</span>${it.live}
+            </div>
+            <div class="text-[11px] text-gray-400 leading-relaxed">${it.guide}</div>
           </div>`;
       }).join('');
     }
@@ -1150,7 +1185,7 @@
         document.getElementById('qqqPrice').textContent = l.qqq_price.toFixed(2);
         document.getElementById('ndxPrice').textContent = l.ndx_price.toFixed(0);
 
-        renderFactorBars(l.scores);
+        renderFactorBars(l.scores, l.factor_details);
         renderRadar(data.radar);
         updateHedgeCalc();
         renderCharts(data);
