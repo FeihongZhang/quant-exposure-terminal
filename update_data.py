@@ -25,60 +25,59 @@ import numpy as np
 from datetime import datetime, timezone
 
 CONFIG = {
-    "model_version": "v2.0",
+    "model_version": "v3.0",
     "start_date": "1999-03-10",
     "max_gross": 1.50,          # Gross 上限 150%
-    "min_gross": 0.60,          # 极端高波下保留最低 Gross 60%
-    "max_net": 1.20,            # 强多头最高 Net +120% (如 Long 135% / Short 15%)
-    "min_net": -0.25,           # 确认熊市最低 Net -25%
-    "target_vol_gross": 0.28,   # Gross 波动率目标 28%（适配科技/AI 弹性）
-    "ema_span": 12,             # 综合得分 12 日 EMA 平滑，过滤日内噪音与假突破
-    "rebalance_buffer": 0.15,   # 15% Net 调仓缓冲区，大幅压低换手磨损
-    "bear_net_cap": 0.05,       # 长期熊市门控（P<MA200 且 MA50<MA200）Net 封顶 +5%
-    "bull_net_floor": 0.85,     # 长期牛市门控（趋势+相对强度+低波共振）Net 保底 +85%
-    "vix_capitulation": 40.0,   # 极端恐慌（VIX>40）禁止保留/追空净空头，防暴力轧空
+    "min_gross": 0.60,          # 极端高波保留最低 Gross 60%
+    "max_net": 1.20,            # 强共识最高 Net +120%
+    "min_net": -0.25,           # 共识瓦解最低 Net -25%
+    "neutral_anchor_net": 0.45, # Long-Biased 偏多中枢：S=0 对应 +45% Net
+    "score_full_scale": 0.65,   # S=±0.65 触及上下限，避免双曲正切末端钝化
+    "target_vol_gross": 0.28,   # 独立 Gross 目标波动率 28%（仅由 RV20 驱动）
+    "ema_span": 10,             # 综合共识得分 10 日 EMA 平滑
+    "rebalance_buffer": 0.15,   # 15% Net 调仓缓冲区（年化换手约 1.5x）
     "margin_spread": 0.015,     # 杠杆融资点差（无风险利率 + 1.5%）
     "tx_cost": 0.0005,          # 单边交易滑点与冲击成本 5bp
 }
 
-TICKERS = ["QQQ", "^SOX", "^NDX", "^GSPC", "VWEHX", "VFITX", "^TNX", "^IRX", "^VIX"]
+CORE_TICKERS = ["QQQ", "^SOX", "^NDX", "^GSPC", "VWEHX", "VFITX", "^IRX", "^VIX"]
+AUX_TICKERS = ["^VIX3M"]  # 2006-07 起有数据，仅作实盘辅助雷达，不截断 1999 回测
 
 
 def map_net(s: float) -> float:
-    if s >= 0.30:
-        return 0.95 + (s - 0.30) / 0.70 * (CONFIG["max_net"] - 0.95)
-    elif s >= 0.00:
-        return 0.50 + (s / 0.30) * 0.45
-    elif s >= -0.35:
-        return 0.00 + ((s + 0.35) / 0.35) * 0.50
+    """单一平滑非对称映射（零硬门控）：S=0 -> +45%，S=+0.65 -> +120%，S=-0.65 -> -25%"""
+    anchor = CONFIG["neutral_anchor_net"]
+    scale = CONFIG["score_full_scale"]
+    if s >= 0.0:
+        return anchor + min(1.0, s / scale) * (CONFIG["max_net"] - anchor)
     else:
-        return CONFIG["min_net"] + ((s + 1.0) / 0.65) * (0.00 - CONFIG["min_net"])
+        return max(CONFIG["min_net"], anchor + (s / scale) * (anchor - CONFIG["min_net"]))
 
 
 def get_regime(s: float) -> dict:
-    if s >= 0.30:
+    if s >= 0.35:
         return {
-            "label": "强多头（主升浪）",
+            "label": "强多头（主升浪共识）",
             "color": "#10b981",
-            "action": "高净多满格进攻，容忍常规洗盘，保留少量高确定性空头 Alpha",
+            "action": "资金与趋势高度共振，高净多进攻，容忍常规洗盘",
         }
     elif s >= 0.00:
         return {
             "label": "温和偏多 / 震荡蓄势",
             "color": "#38bdf8",
-            "action": "保持显著偏多配置，精选 AI/科技多空个股，不因短期噪音频繁折腾",
+            "action": "保持显著偏多配置，精选 AI/科技核心个股，减少折腾",
         }
-    elif s >= -0.35:
+    elif s >= -0.42:
         return {
-            "label": "中性防御 / 趋势转弱",
+            "label": "中性防御 / 共识转弱",
             "color": "#f59e0b",
-            "action": "用 QQQ/MNQ 指数空头对冲多余 Beta，降低杠杆、聚焦纯 Alpha",
+            "action": "用 QQQ/MNQ 对冲多余 Beta，聚焦纯 Alpha 并关注下方辅助雷达",
         }
     else:
         return {
-            "label": "确认熊市 / 系统性风险",
+            "label": "确认熊市 / 共识瓦解",
             "color": "#ef4444",
-            "action": "允许适度净空保护净值并严控 Gross；若 VIX>40 极端恐慌则不追空防逼空",
+            "action": "允许适度净空保护净值并严控 Gross；若 VIX/VIX3M 倒挂则勿追空",
         }
 
 
@@ -119,10 +118,8 @@ def extract_major_rebalances(
             prev_row = bt.iloc[i - 5]
 
             factor_contrib = {
-                "趋势动量": 0.45 * row["score_trend"],
-                "科技相对强弱": 0.25 * row["score_rel"],
-                "波动率体制": 0.15 * row["score_volreg"],
-                "信用与利率": 0.15 * row["score_macro"],
+                "科技长期趋势": 0.65 * row["score_trend"],
+                "科技相对标普": 0.35 * row["score_lead"],
             }
             driver = max(factor_contrib, key=lambda k: abs(factor_contrib[k]))
 
@@ -143,9 +140,10 @@ def extract_major_rebalances(
     return events
 
 
-def download_close_data(tickers: list, start_date: str) -> pd.DataFrame:
+def download_close_data(core_tickers: list, aux_tickers: list, start_date: str) -> pd.DataFrame:
+    all_tickers = core_tickers + aux_tickers
     raw = yf.download(
-        tickers,
+        all_tickers,
         start=start_date,
         auto_adjust=True,
         progress=False,
@@ -162,7 +160,7 @@ def download_close_data(tickers: list, start_date: str) -> pd.DataFrame:
     else:
         close = raw[["Close"]].copy() if "Close" in raw.columns else raw.copy()
 
-    missing = [t for t in tickers if t not in close.columns or close[t].dropna().empty]
+    missing = [t for t in all_tickers if t not in close.columns or close[t].dropna().empty]
     for t in missing:
         single = yf.download(t, start=start_date, auto_adjust=True, progress=False)
         if single is not None and not single.empty:
@@ -171,43 +169,127 @@ def download_close_data(tickers: list, start_date: str) -> pd.DataFrame:
                 s_close = s_close.iloc[:, 0]
             close[t] = s_close
 
-    still_missing = [t for t in tickers if t not in close.columns or close[t].dropna().empty]
+    still_missing = [t for t in core_tickers if t not in close.columns or close[t].dropna().empty]
     if still_missing:
-        raise RuntimeError(f"以下标的数据下载失败: {still_missing}")
+        raise RuntimeError(f"以下核心标的数据下载失败: {still_missing}")
 
-    close = close[tickers].sort_index()
+    close = close.sort_index()
     print("=== 各标的数据覆盖范围 ===")
-    for t in tickers:
-        s = close[t].dropna()
-        print(f"  {t:6s}: {s.index[0].strftime('%Y-%m-%d')} ~ {s.index[-1].strftime('%Y-%m-%d')} ({len(s)} rows)")
+    for t in all_tickers:
+        if t in close.columns and not close[t].dropna().empty:
+            s = close[t].dropna()
+            print(f"  {t:7s}: {s.index[0].strftime('%Y-%m-%d')} ~ {s.index[-1].strftime('%Y-%m-%d')} ({len(s)} rows)")
+        else:
+            print(f"  {t:7s}: 缺失（仅辅助项）")
 
-    # 严格以 QQQ 真实美股交易日历为基准，避免假期 VIX 单独报价产生虚拟交易日
+    # 严格以 QQQ 真实美股交易日历为基准，且不让 2006 年才起步的 ^VIX3M 截断 1999 回测
     qqq_dates = close["QQQ"].dropna().index
-    close = close.ffill().loc[qqq_dates].dropna()
-    return close
+    core_df = close[core_tickers].ffill().loc[qqq_dates].dropna()
+    for t in aux_tickers:
+        if t in close.columns:
+            core_df[t] = close[t].ffill().reindex(core_df.index)
+        else:
+            core_df[t] = np.nan
+    return core_df
+
+
+def build_radar_snapshot(close: pd.DataFrame, bench_idx: pd.Series) -> dict:
+    """构建独立辅助决策雷达（不进入主公式，用于人工极端情况辅助加减仓）"""
+    # 1. 信用利差代理：VWEHX (高收益债) / VFITX (中期美债)
+    cr = close["VWEHX"] / close["VFITX"]
+    cr_ma120 = cr.rolling(120).mean()
+    cr_cur = float(cr.iloc[-1])
+    cr_ma_cur = float(cr_ma120.iloc[-1])
+    cr_dev = cr_cur / cr_ma_cur - 1.0
+    cr_chg20 = float(cr.pct_change(20).iloc[-1])
+
+    if cr_dev <= -0.015 or (cr_dev < 0 and cr_chg20 <= -0.01):
+        cr_level, cr_label, cr_color = "danger", "红灯 · 信用显著收紧（系统性抽水预警）", "#ef4444"
+        cr_hint = "信用市场已明显走弱，若主模型 Net 仍偏高，可考虑提前手动多降 15%~25% Net 并压低 Gross，严防 2008 式信贷收缩。"
+    elif cr_dev < 0:
+        cr_level, cr_label, cr_color = "warn", "黄灯 · 信用温和走弱（留意机构去风险）", "#f59e0b"
+        cr_hint = "信用比率小幅低于 120 日均线，暂无需激进干预，若继续下行跌破 -1.5% 再考虑额外降仓。"
+    else:
+        cr_level, cr_label, cr_color = "ok", "绿灯 · 信用环境健康（Risk-On）", "#10b981"
+        cr_hint = "高收益债相对国债位于 120 日均线上方，金融流动性正常；若刚经历大熊市后率先转绿，可增强右侧加仓信心。"
+
+    # 2. 波动率期限结构：^VIX / ^VIX3M
+    vix = close["^VIX"]
+    vix3m = close["^VIX3M"]
+    vix_term = vix / vix3m
+    vix_cur = float(vix.iloc[-1])
+    vix3m_cur = float(vix3m.iloc[-1]) if pd.notna(vix3m.iloc[-1]) else None
+    vt_cur = float(vix_term.iloc[-1]) if pd.notna(vix_term.iloc[-1]) else None
+
+    ma50 = bench_idx.rolling(50).mean()
+    above_ma50 = bool(bench_idx.iloc[-1] > ma50.iloc[-1])
+    inv_series = vix_term > 1.03
+    inv_recent_40d = bool(inv_series.iloc[-40:].any()) if vix_term.dropna().shape[0] >= 5 else False
+    max_vt_40d = float(vix_term.iloc[-40:].max()) if vix_term.iloc[-40:].notna().any() else None
+
+    if vt_cur is None:
+        vt_level, vt_label, vt_color = "warn", "数据暂缺（^VIX3M 未返回）", "#94a3b8"
+        vt_hint = "暂未获取到 ^VIX3M 数据，请以主模型信号与 VIX 绝对水位为准。"
+    elif vt_cur >= 1.03:
+        vt_level, vt_label, vt_color = "danger", "红灯 · 近月恐慌倒挂（严禁追空 / 控 Gross）", "#ef4444"
+        vt_hint = "VIX/VIX3M ≥ 1.03 代表短期恐慌倒挂。实证显示倒挂后 60 日科技股平均反弹 +6.8%：此时应压低 Gross 防多空双杀，但切忌追空或新建净空头！"
+    elif inv_recent_40d and vt_cur < 0.94 and above_ma50:
+        vt_level, vt_label, vt_color = "ok", "绿灯 · 恐慌解除右侧加仓确认", "#10b981"
+        vt_hint = "近 40 日出现过倒挂，现已回落至 <0.94 且价格站回 50 日均线！说明恐慌对冲盘出清，若当前 Net 低于 +65%，可考虑手动提前分批回补多头。"
+    elif vt_cur >= 0.96:
+        vt_level, vt_label, vt_color = "warn", "黄灯 · 短期避险升温（保持观察）", "#f59e0b"
+        vt_hint = "期限结构偏平（0.96~1.03），市场情绪偏紧；按主模型指令执行即可，等待倒挂或明确回落信号。"
+    else:
+        vt_level, vt_label, vt_color = "normal", "正常 · 期限结构贴水（Contango 平静期）", "#38bdf8"
+        vt_hint = "VIX 处于正常 Contango 状态（<0.96），无恐慌事件干扰，严格跟随主模型 2 因子信号即可。"
+
+    return {
+        "credit": {
+            "ratio": round(cr_cur, 4),
+            "ma120": round(cr_ma_cur, 4),
+            "dev_pct": round(cr_dev, 4),
+            "chg_20d_pct": round(cr_chg20, 4),
+            "level": cr_level,
+            "label": cr_label,
+            "color": cr_color,
+            "hint": cr_hint,
+        },
+        "vix_term": {
+            "vix": round(vix_cur, 2),
+            "vix3m": round(vix3m_cur, 2) if vix3m_cur is not None else None,
+            "ratio": round(vt_cur, 3) if vt_cur is not None else None,
+            "max_40d": round(max_vt_40d, 3) if max_vt_40d is not None else None,
+            "inverted_recent_40d": inv_recent_40d,
+            "above_ma50": above_ma50,
+            "level": vt_level,
+            "label": vt_label,
+            "color": vt_color,
+            "hint": vt_hint,
+        },
+    }
 
 
 def send_notifications(payload: dict):
     latest = payload["latest"]
-    gates = latest.get("gates", {})
-    active_gates = [k for k, v in [
-        ("牛市底仓保护", gates.get("secular_bull")),
-        ("熊市防诱多封顶", gates.get("secular_bear")),
-        ("VIX>40平空保护", gates.get("vix_capitulation")),
-    ] if v]
-    gate_str = " / ".join(active_gates) if active_gates else "无触发"
+    radar = payload["radar"]
+    vt = radar["vix_term"]
+    cr = radar["credit"]
+    vt_str = f"{vt['ratio']:.3f}" if vt["ratio"] is not None else "--"
 
     msg = (
-        f"📊 科技/AI 量化敞口日报 v2.0 ({latest['date']})\n"
+        f"📊 科技/AI 量化敞口日报 v3.0 极简共识版 ({latest['date']})\n"
         f"状态：{latest['regime']['label']}\n"
-        f"综合得分 S：{latest['S']:+.2f}（门控：{gate_str}）\n"
-        f"• 长期趋势: {latest['scores']['trend']:+.2f} | 相对标普: {latest['scores']['rel_spx']:+.2f}\n"
-        f"• 波动体制: {latest['scores']['vol_regime']:+.2f} | 信用利率: {latest['scores']['macro']:+.2f}\n"
+        f"综合共识得分 S：{latest['S']:+.2f}\n"
+        f"• 科技长期趋势 (65%): {latest['scores']['trend']:+.2f}\n"
+        f"• 科技相对标普 (35%): {latest['scores']['lead']:+.2f}\n"
         f"——————————————\n"
         f"🎯 Target Net：{latest['exec_net']:+.1%}（原始 {latest['target_net']:+.1%}）\n"
-        f"⚖️ Target Gross：{latest['target_gross']:.1%}\n"
+        f"⚖️ Target Gross：{latest['target_gross']:.1%}（20D 波动 {latest['realized_vol_20d']:.1%}）\n"
         f"📌 参考配比：Long {latest['target_long']:.1%} / Short {latest['target_short']:.1%}\n"
-        f"💡 建议：{latest['regime']['action']}"
+        f"——————————————\n"
+        f"🛰 辅助雷达（参考）：\n"
+        f"• 信用利差偏离120D: {cr['dev_pct']:+.2%} ({cr['label']})\n"
+        f"• VIX/VIX3M: {vt_str} ({vt['label']})"
     )
 
     tg_token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -237,7 +319,7 @@ def send_notifications(payload: dict):
 
 
 def main():
-    close = download_close_data(TICKERS, CONFIG["start_date"])
+    close = download_close_data(CORE_TICKERS, AUX_TICKERS, CONFIG["start_date"])
 
     ret_qqq = close["QQQ"].pct_change().fillna(0)
     ret_sox = close["^SOX"].pct_change().fillna(0)
@@ -248,90 +330,41 @@ def main():
 
     df = pd.DataFrame(index=close.index)
 
-    # 基础技术序列（严格无未来函数）
+    # 基础序列（严格无未来函数）
     ma50 = bench_idx.rolling(50).mean()
-    ma100 = bench_idx.rolling(100).mean()
     ma200 = bench_idx.rolling(200).mean()
     rv20 = ret_bench.rolling(20).std() * np.sqrt(252)
     rv60 = ret_bench.rolling(60).std() * np.sqrt(252)
-
-    credit_ratio = close["VWEHX"] / close["VFITX"]
-    cr_ma100 = credit_ratio.rolling(100).mean()
-    cr_ma150 = credit_ratio.rolling(150).mean()
-
     rel_spx = bench_idx / spx
-    rel_ma100 = rel_spx.rolling(100).mean()
-    rel_ma200 = rel_spx.rolling(200).mean()
-
-    vix = close["^VIX"]
-    vix_ratio = vix / vix.rolling(60).mean()
-    tnx_chg_60 = close["^TNX"].diff(60)
+    rel_ma150 = rel_spx.rolling(150).mean()
 
     # ==========================================
-    # v2.0 四维度方向打分（连续平滑，剔除短均线与VIX底部反向噪音）
+    # v3.0 极简 2 因子市场共识打分（零门控、零冗余补丁）
     # ==========================================
-    # 1. 长期趋势与动量 (45%)：波动率归一化均线距离 + 50/200 均线结构 + 6个月动量
+    # 1. 绝对共识：科技长期趋势 (65%) = 200D 波动率归一化均线距离 + 50/200 结构
     vol_norm = rv60.clip(0.15, 0.55)
-    z_ma100 = np.tanh((bench_idx / ma100 - 1) / (vol_norm * np.sqrt(100 / 252) * 0.75))
     z_ma200 = np.tanh((bench_idx / ma200 - 1) / (vol_norm * np.sqrt(200 / 252) * 0.75))
     z_cross = np.tanh((ma50 / ma200 - 1) * 10.0)
-    z_mom126 = np.tanh(bench_idx.pct_change(126) / (vol_norm * np.sqrt(126 / 252)))
-    df["score_trend"] = (0.20 * z_ma100 + 0.30 * z_ma200 + 0.25 * z_cross + 0.25 * z_mom126).clip(-1, 1)
+    df["score_trend"] = (0.60 * z_ma200 + 0.40 * z_cross).clip(-1, 1)
 
-    # 2. 科技相对标普 500 领导力 (25%)：样本内外均最稳定的正向 alpha 体制因子
-    z_rel100 = np.tanh((rel_spx / rel_ma100 - 1) * 12.0)
-    z_rel200 = np.tanh((rel_spx / rel_ma200 - 1) * 8.0)
-    df["score_rel"] = (0.55 * z_rel100 + 0.45 * z_rel200).clip(-1, 1)
+    # 2. 相对共识：科技相对标普 500 领导力 (35%)
+    df["score_lead"] = np.tanh((rel_spx / rel_ma150 - 1) * 10.0).clip(-1, 1)
 
-    # 3. 持续实现波动率体制 (15%)：60日波动率区分平静牛市与结构性高波熊市
-    df["score_volreg"] = np.tanh((0.28 - rv60) / 0.10).clip(-1, 1)
-
-    # 4. 信用趋势与非对称利率冲击 (15%)：高收益债信用趋势为主，仅对利率急升扣分
-    s_credit = (
-        0.55 * np.tanh((credit_ratio / cr_ma100 - 1) * 30.0)
-        + 0.45 * np.tanh((credit_ratio / cr_ma150 - 1) * 22.0)
-    ).clip(-1, 1)
-    rate_penalty = np.clip(-(tnx_chg_60 - 0.35).clip(lower=0) / 0.80, -1.0, 0.0)
-    df["score_macro"] = (s_credit + 0.35 * rate_penalty).clip(-1, 1)
-
-    # 综合得分 S（12 日 EMA 平滑防高频磨损）
-    df["S_raw"] = (
-        0.45 * df["score_trend"]
-        + 0.25 * df["score_rel"]
-        + 0.15 * df["score_volreg"]
-        + 0.15 * df["score_macro"]
-    ).clip(-1, 1)
+    # 综合共识得分 S（10 日 EMA 平滑）
+    df["S_raw"] = (0.65 * df["score_trend"] + 0.35 * df["score_lead"]).clip(-1, 1)
     df["S"] = df["S_raw"].ewm(span=CONFIG["ema_span"], adjust=False).mean().clip(-1, 1)
 
     # ==========================================
-    # Net 敞口映射 + 三重结构化门控（Regime Gates）
+    # 单一平滑 Net 映射 + 独立波动率 Gross 风控层
     # ==========================================
     df["raw_net"] = df["S"].apply(map_net)
 
-    secular_bear = (bench_idx < ma200) & (ma50 < ma200)
-    secular_bull = (bench_idx > ma200) & (ma50 > ma200) & (rel_spx > rel_ma200) & (rv60 < 0.35)
-    vix_capitulation = vix > CONFIG["vix_capitulation"]
-
-    gated_net = np.where(secular_bear, np.minimum(df["raw_net"], CONFIG["bear_net_cap"]), df["raw_net"])
-    gated_net = np.where(secular_bull, np.maximum(gated_net, CONFIG["bull_net_floor"]), gated_net)
-    gated_net = np.where(vix_capitulation & (gated_net < 0), 0.0, gated_net)
-    df["gated_net"] = gated_net
-
-    df["gate_secular_bear"] = secular_bear
-    df["gate_secular_bull"] = secular_bull
-    df["gate_vix_capitulation"] = vix_capitulation
-
-    # ==========================================
-    # Gross 杠杆风控层（与方向解耦：由 20D 实现波动率 + VIX 短期恐慌驱动）
-    # ==========================================
-    vol_scalar = (CONFIG["target_vol_gross"] / rv20).clip(0.42, 1.15)
-    panic_penalty = np.where((vix_ratio > 1.30) | (vix > 32), 0.80, 1.0)
-    base_gross = np.where(df["S"] >= 0.15, 1.50, np.where(df["S"] >= -0.25, 1.15, 0.85))
-    df["target_gross"] = (base_gross * vol_scalar * panic_penalty).clip(
+    # Gross 仅由 20D 实现波动率目标法驱动（与方向彻底解耦）
+    vol_scalar = (CONFIG["target_vol_gross"] / rv20).clip(0.40, 1.00)
+    df["target_gross"] = (CONFIG["max_gross"] * vol_scalar).clip(
         CONFIG["min_gross"], CONFIG["max_gross"]
     )
-
-    df["target_net"] = np.clip(df["gated_net"], -df["target_gross"], df["target_gross"])
+    df["target_net"] = np.clip(df["raw_net"], -df["target_gross"], df["target_gross"])
 
     # 15% 调仓缓冲区（No-Trade Buffer）
     exec_net = [0.50]
@@ -372,8 +405,8 @@ def main():
 
     annual_turnover = float(turnover.sum() / (len(bt) / 252.0))
     rebalance_count = int((turnover > 0).sum())
+    net_short_pct = float((bt["exec_net"] < 0).mean())
 
-    # 关键周期统计
     crises_def = [
         ("2000-2002 互联网泡沫", "2000-03-01", "2002-10-31"),
         ("2008 全球金融危机", "2007-11-01", "2009-03-09"),
@@ -398,8 +431,8 @@ def main():
             )
 
     major_events = extract_major_rebalances(bt, threshold=0.25, cooldown_days=20)
+    radar_snapshot = build_radar_snapshot(close, bench_idx)
 
-    # 样本外 (2016-至今) 独立校验指标
     bt_oos = bt.loc["2016-01-01":]
     oos_metrics = {
         "strategy": calc_metrics(bt_oos["strat_ret"], bt_oos["rf"]),
@@ -407,9 +440,7 @@ def main():
         "qqq": calc_metrics(bt_oos["qqq_ret"], bt_oos["rf"]),
     }
 
-    # 图表抽样（每周最后一个真实交易日，保证无未来日期标签且包含最新交易日）
     weekly = bt.groupby(bt.index.to_period("W-FRI")).tail(1)
-
     latest_row = bt.iloc[-1]
     latest_date = bt.index[-1].strftime("%Y-%m-%d")
 
@@ -428,27 +459,20 @@ def main():
             "trading_days": int(len(bt)),
             "annual_turnover": round(annual_turnover, 2),
             "rebalance_count": rebalance_count,
+            "net_short_pct": round(net_short_pct, 4),
         },
         "latest": {
             "date": latest_date,
             "qqq_price": round(float(close["QQQ"].iloc[-1]), 2),
             "ndx_price": round(float(close["^NDX"].iloc[-1]), 2),
             "vix": round(float(close["^VIX"].iloc[-1]), 2),
-            "us10y": round(float(close["^TNX"].iloc[-1]), 2),
             "realized_vol_20d": round(float(rv20.iloc[-1]), 4),
             "realized_vol_60d": round(float(rv60.iloc[-1]), 4),
             "S": round(float(latest_row["S"]), 3),
             "S_raw": round(float(latest_row["S_raw"]), 3),
             "scores": {
                 "trend": round(float(latest_row["score_trend"]), 3),
-                "rel_spx": round(float(latest_row["score_rel"]), 3),
-                "vol_regime": round(float(latest_row["score_volreg"]), 3),
-                "macro": round(float(latest_row["score_macro"]), 3),
-            },
-            "gates": {
-                "secular_bull": bool(latest_row["gate_secular_bull"]),
-                "secular_bear": bool(latest_row["gate_secular_bear"]),
-                "vix_capitulation": bool(latest_row["gate_vix_capitulation"]),
+                "lead": round(float(latest_row["score_lead"]), 3),
             },
             "raw_net": round(float(latest_row["raw_net"]), 4),
             "target_net": round(float(latest_row["target_net"]), 4),
@@ -458,6 +482,7 @@ def main():
             "target_short": round(float(latest_row["target_short"]), 4),
             "regime": get_regime(float(latest_row["S"])),
         },
+        "radar": radar_snapshot,
         "metrics": metrics_obj,
         "oos_metrics": oos_metrics,
         "crises": crises_out,
@@ -486,10 +511,10 @@ def main():
         json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
 
     print(
-        f"\n=== v2.0 全周期回测绩效 ({bt.index[0].strftime('%Y-%m-%d')} ~ {latest_date}, 共 {len(bt)} 交易日) ==="
+        f"\n=== v3.0 极简共识版 全周期绩效 ({bt.index[0].strftime('%Y-%m-%d')} ~ {latest_date}, 共 {len(bt)} 交易日) ==="
     )
     for label, key in [
-        ("量化敞口策略 v2.0 (仅Beta)", "strategy"),
+        ("量化敞口策略 v3.0 (仅Beta)", "strategy"),
         ("科技+半导体基准 (70/30)", "bench"),
         ("QQQ (100% 满仓)", "qqq"),
     ]:
@@ -498,11 +523,11 @@ def main():
             f"  {label:24s} | CAGR={m['cagr']:6.2%} | Vol={m['vol']:6.2%} | "
             f"Sharpe={m['sharpe']:5.2f} | MaxDD={m['mdd']:7.2%} | Calmar={m['calmar']:5.2f}"
         )
-    print(f"  策略年化换手率: {annual_turnover:.2f}x | 总调仓次数: {rebalance_count}")
+    print(f"  策略年化换手率: {annual_turnover:.2f}x | 总调仓次数: {rebalance_count} | Net<0 占比: {net_short_pct:.1%}")
 
     print("\n=== 样本外校验 (2016-01-01 ~ 至今) ===")
     for label, key in [
-        ("量化敞口策略 v2.0 (OOS)", "strategy"),
+        ("量化敞口策略 v3.0 (OOS)", "strategy"),
         ("科技+半导体基准 (OOS)", "bench"),
         ("QQQ 满仓 (OOS)", "qqq"),
     ]:
@@ -518,30 +543,26 @@ def main():
             f"  {c['name']:20s} | 基准: {c['bench_ret']:+7.1%} | 策略: {c['strat_ret']:+7.1%} | 平均Net: {c['avg_net']:+6.1%}"
         )
 
-    print(f"\n=== 重大加减仓事件日志 (共 {len(major_events)} 次, 最近 15 次) ===")
-    for ev in major_events[-15:]:
+    print(f"\n=== 重大加减仓事件日志 (共 {len(major_events)} 次, 最近 12 次) ===")
+    for ev in major_events[-12:]:
         print(
             f"  {ev['date']} | {ev['action']} | Net: {ev['net_before']:+5.0%} -> {ev['net_after']:+5.0%} "
             f"({ev['delta_net']:+5.0%}) | Gross: {ev['gross_after']:4.0%} | S={ev['score_S']:+.2f} | 主导: {ev['main_driver']}"
         )
 
     l = payload["latest"]
+    cr_r = radar_snapshot["credit"]
+    vt_r = radar_snapshot["vix_term"]
     print("\n=== 最新交易日仓位指令 ===")
     print(f"  日期: {l['date']} | 状态: {l['regime']['label']} | S={l['S']:+.3f} (未平滑: {l['S_raw']:+.3f})")
-    print(
-        f"  分项得分 -> 长期趋势: {l['scores']['trend']:+.3f} | 相对标普: {l['scores']['rel_spx']:+.3f} | "
-        f"波动体制: {l['scores']['vol_regime']:+.3f} | 信用利率: {l['scores']['macro']:+.3f}"
-    )
-    print(
-        f"  结构门控 -> 牛市底仓: {l['gates']['secular_bull']} | 熊市封顶: {l['gates']['secular_bear']} | VIX>40平空: {l['gates']['vix_capitulation']}"
-    )
+    print(f"  共识拆解 -> 长期趋势(65%): {l['scores']['trend']:+.3f} | 相对标普(35%): {l['scores']['lead']:+.3f}")
     print(
         f"  Target Net (执行): {l['exec_net']:+.1%} (原始目标: {l['target_net']:+.1%}) | "
         f"Target Gross: {l['target_gross']:.1%} | 参考配比: L {l['target_long']:.1%} / S {l['target_short']:.1%}"
     )
     print(
-        f"  行情快照 -> QQQ: ${l['qqq_price']:.2f} | NDX: {l['ndx_price']:.2f} | "
-        f"VIX: {l['vix']:.2f} | US10Y: {l['us10y']:.2f}% | 20D/60D Vol: {l['realized_vol_20d']:.1%} / {l['realized_vol_60d']:.1%}"
+        f"  辅助雷达 -> 信用偏离120D: {cr_r['dev_pct']:+.2%} [{cr_r['label']}] | "
+        f"VIX/VIX3M: {vt_r['ratio']} [{vt_r['label']}]"
     )
     print(f"\nSuccessfully generated data/latest_data.json for {latest_date} (model {CONFIG['model_version']})")
 

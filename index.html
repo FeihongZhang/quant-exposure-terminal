@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tech/AI 量化敞口管理终端 v2.0</title>
+  <title>Tech/AI 量化敞口管理终端 v3.0 极简共识版</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
@@ -38,11 +38,12 @@
   <!-- Header -->
   <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-4">
     <div>
-      <div class="flex items-center gap-2.5">
+      <div class="flex items-center gap-2.5 flex-wrap">
         <h1 class="text-2xl font-bold tracking-tight text-white">Tech / AI 量化敞口管理终端</h1>
-        <span id="modelBadge" class="px-2 py-0.5 text-xs font-semibold rounded-full bg-sky-900/60 text-sky-300 border border-sky-700/60 mono">v2.0</span>
+        <span id="modelBadge" class="px-2 py-0.5 text-xs font-semibold rounded-full bg-sky-900/60 text-sky-300 border border-sky-700/60 mono">v3.0</span>
+        <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-700/50">极简市场共识版</span>
       </div>
-      <p class="text-sm text-gray-400 mt-1">Long-Biased Systematic Exposure Overlay · Gross 上限 150% · Net -25% ~ +120% · 每日自动更新</p>
+      <p class="text-sm text-gray-400 mt-1">Long-Biased Systematic Exposure Overlay · 2 共识因子 + 1 波动率风控 · 零硬门控 · Gross 上限 150%</p>
     </div>
     <div class="text-right text-xs text-gray-400 mono">
       <div>最新交易日：<span id="latestDate" class="text-gray-200 font-semibold">--</span></div>
@@ -59,44 +60,44 @@
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
       <div class="flex items-center gap-2.5 flex-wrap">
         <span class="px-2 py-0.5 text-[11px] font-semibold rounded bg-sky-900/60 text-sky-300 border border-sky-700/50">策略简介</span>
-        <h2 class="text-sm font-semibold text-white">核心逻辑：Alpha 与 Beta 解耦 · 方向（Net）与杠杆（Gross）解耦</h2>
+        <h2 class="text-sm font-semibold text-white">第一性原理极简架构：只看「市场共识」管方向，只看「波动率」管杠杆</h2>
       </div>
       <button id="btnToggleIntro" class="self-start sm:self-auto px-2.5 py-1 text-xs rounded border border-gray-700 text-gray-300 hover:bg-gray-800">收起简介</button>
     </div>
 
     <div id="introBody" class="space-y-4">
       <p class="text-xs md:text-sm text-gray-300 leading-relaxed">
-        本系统面向美股 AI / 科技 <span class="text-white font-medium">Long-Biased 多空组合</span>，以 <span class="mono text-sky-300">70% QQQ + 30% ^SOX</span> 为 Beta 观测锚，不干预个股选股，仅通过客观量化信号动态管控组合的 <span class="text-amber-300 font-medium">Target Net（-25% ~ +120%）</span> 与 <span class="text-sky-300 font-medium">Target Gross（60% ~ 150%）</span>。实盘保留高确信 AI 核心多头不动，通过做空/平空 <span class="mono text-gray-100">QQQ</span> 或 <span class="mono text-gray-100">MNQ</span> 纳指微期货调节 Beta-Adjusted Net，并以 <span class="mono text-gray-100">15%</span> 调仓缓冲区抑制高频磨损。
+        本系统面向美股 AI / 科技 <span class="text-white font-medium">Long-Biased 多空组合</span>，将「个股 Alpha 研究」与「市场 Beta / 杠杆管理」解耦。以 <span class="mono text-sky-300">70% QQQ + 30% ^SOX</span> 为基准观测锚，通过<span class="text-white font-medium">仅 2 个纯市场共识因子</span>（无复杂门控补丁、无噪音短均线、无名义利率误判）平滑输出 <span class="text-amber-300 font-medium">Target Net（-25% ~ +120%）</span>，并由独立波动率规则约束 <span class="text-sky-300 font-medium">Target Gross（60% ~ 150%）</span>。实盘不动核心 AI 个股多头，仅用 <span class="mono text-gray-100">QQQ / MNQ</span> 对冲 Beta 缺口；同时在下方单独提供 <span class="text-emerald-300 font-medium">信用利差</span> 与 <span class="text-purple-300 font-medium">VIX/VIX3M</span> 两大辅助雷达用于极端情景下的人工微调。
       </p>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs leading-relaxed">
         <!-- Box 1: Architecture -->
         <div class="p-3.5 rounded-lg bg-gray-900/70 border border-gray-800 space-y-1.5">
-          <div class="font-semibold text-sky-300">① 四层信号与风控构成</div>
+          <div class="font-semibold text-sky-300">① 最小化因果公式（零门控、零黑箱）</div>
           <ul class="space-y-1 text-gray-300 list-disc list-inside">
-            <li><span class="text-white">方向打分（12D EMA）</span>：长期趋势 45%（100/200D 均线+126D 动量）、科技相对标普 25%（Tech/^GSPC）、60D 波动体制 15%、信用趋势与非对称利率冲击 15%。</li>
-            <li><span class="text-white">三重硬门控</span>：长期牛市保底 <span class="mono text-emerald-400">+85%</span>、熊市防诱多封顶 <span class="mono text-rose-400">+5%</span>、<span class="mono text-amber-300">VIX&gt;40</span> 极端恐慌不留净空。</li>
-            <li><span class="text-white">独立 Gross 层</span>：由 28% 目标波动率（对比 20D 实现波动率）+ 短期 VIX 恐慌 8 折驱动，防高波多空双杀。</li>
+            <li><span class="text-white">绝对共识（65%）</span>：科技基准相对 200D 均线距离 + 50/200 均线结构——全市场真金白银是否在持续买入科技。</li>
+            <li><span class="text-white">相对共识（35%）</span>：<span class="mono">Tech / ^GSPC</span> 相对 150D 均线——风险资金是在向科技集中，还是在撤离科技。</li>
+            <li><span class="text-white">执行与杠杆</span>：10D EMA 平滑 + 单一连续非对称映射（<span class="mono">S=0 → +45%</span>）+ <span class="mono">15%</span> 缓冲区；Gross 仅由 <span class="mono">28% / RV20</span> 独立约束。</li>
           </ul>
         </div>
 
-        <!-- Box 2: Strengths & When it works -->
+        <!-- Box 2: Strengths -->
         <div class="p-3.5 rounded-lg bg-emerald-950/20 border border-emerald-900/50 space-y-1.5">
           <div class="font-semibold text-emerald-400">② 核心长处 · 什么时候最有效</div>
           <ul class="space-y-1 text-gray-300 list-disc list-inside">
-            <li><span class="text-white">慢熊与流动性紧缩</span>：2000–02、2008、2022 等估值杀周期中逐层降 Net 压 Gross，守住长期复利本金基数（27 年最大回撤从 -83% 压至 -29.4%）。</li>
-            <li><span class="text-white">科技/AI 结构性主升浪</span>：牛市底仓门控 + 最高 +120% 净多，容忍常规 5–10% 洗盘不轻易踏空。</li>
-            <li><span class="text-white">资金风格切换期</span>：科技相对标普强弱往往先于大盘发出预警；年化换手仅 <span class="mono">2.41x</span>，实盘摩擦极低。</li>
+            <li><span class="text-white">极简抗过拟合</span>：结构透明、年化换手仅 <span class="mono">~1.5x</span>（年均仅调仓 4–5 次），实盘执行成本极低。</li>
+            <li><span class="text-white">大牛市不踏空、慢熊自然翻空</span>：2000–02、2008、2022 全部自然切入净空（占比约 11.7%），27 年纯 Beta 复利跑赢基准与 QQQ。</li>
+            <li><span class="text-white">风格切换先知</span>：资金从科技撤向防御板块时，相对标普共识往往先于大盘指数发出减仓信号。</li>
           </ul>
         </div>
 
-        <!-- Box 3: Weaknesses & Failure modes -->
+        <!-- Box 3: Weaknesses -->
         <div class="p-3.5 rounded-lg bg-rose-950/20 border border-rose-900/50 space-y-1.5">
-          <div class="font-semibold text-rose-400">③ 短板与代价 · 什么时候可能失效</div>
+          <div class="font-semibold text-rose-400">③ 短板与代价 · 何时借助下方辅助雷达</div>
           <ul class="space-y-1 text-gray-300 list-disc list-inside">
-            <li><span class="text-white">黑天鹅垂直闪崩 + 极速 V 反</span>：如 2020.03 疫情熔断，右侧中长均线天然滞后，会先吃前半段急跌并踏空最左侧反弹。</li>
-            <li><span class="text-white">宽幅无趋势拉锯震荡</span>：指数围绕 100/200 日线长期上下假突破时（如 2015–16 初）仍会产生少量磨损。</li>
-            <li><span class="text-white">极致零回撤疯牛 / 个股逼空</span>：疯牛阶段纯 Beta 可能略跑输满仓基准；若多空个股 Alpha 反向逼空，需严守低 Gross 上限。</li>
+            <li><span class="text-white">2008 式信贷冻结危机</span>：纯共识主模型在银行信贷崩盘初期略慢，需参考下方<span class="text-white">「信用利差雷达」</span>提前减仓。</li>
+            <li><span class="text-white">2020 式黑天鹅急跌 + V 反</span>：长期均线右侧天然滞后，暴跌末端需结合<span class="text-white">「VIX/VIX3M 雷达」</span>防追空并抓解除回补。</li>
+            <li><span class="text-white">高波个股多空背离</span>：即便 Net 中性，若多空个股反向逼空仍会亏钱，高波期务必严守 <span class="mono">60% Gross</span> 上限。</li>
           </ul>
         </div>
       </div>
@@ -111,9 +112,9 @@
       <div id="regimeAction" class="text-xs text-gray-400 mt-2 leading-relaxed">--</div>
     </div>
     <div class="card p-5">
-      <div class="text-xs text-gray-400 uppercase">综合得分 S (12D EMA)</div>
+      <div class="text-xs text-gray-400 uppercase">综合共识得分 S (10D EMA)</div>
       <div id="scoreS" class="text-3xl font-bold mono mt-2">--</div>
-      <div class="text-xs text-gray-400 mt-2 mono">VIX: <span id="vixVal">--</span> | US10Y: <span id="us10yVal">--</span>%</div>
+      <div class="text-xs text-gray-400 mt-2 mono">VIX: <span id="vixVal">--</span> | VIX/VIX3M: <span id="vixTermKpi">--</span></div>
     </div>
     <div class="card p-5 border-blue-500/40">
       <div class="text-xs text-blue-400 uppercase font-semibold">Target Net Exposure</div>
@@ -129,17 +130,17 @@
 
   <!-- Factor Breakdown & Hedge Calculator -->
   <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-    <!-- 4 Factors -->
+    <!-- 2 Core Consensus Factors -->
     <div class="card p-5 lg:col-span-5 space-y-4">
       <div class="flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">v2.0 四维度方向因子拆解</h2>
+        <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider">v3.0 核心 2 因子共识拆解</h2>
         <span class="text-xs text-gray-400 mono">未平滑 S: <span id="scoreSRaw">--</span></span>
       </div>
-      <div id="factorBars" class="space-y-4"></div>
-      <div class="pt-3 border-t border-gray-800 space-y-2 text-xs text-gray-400">
-        <div>权重：长期趋势 45% · 相对标普 25% · 波动体制 15% · 信用利率 15%</div>
-        <div class="mono">原始目标 Net：<span id="rawTargetNet">--</span>（15% 缓冲区防高频磨损）</div>
-        <div class="flex flex-wrap gap-1.5 pt-1" id="gateBadges"></div>
+      <div id="factorBars" class="space-y-5 pt-1"></div>
+      <div class="pt-4 border-t border-gray-800 space-y-2 text-xs text-gray-400">
+        <div>公式：<span class="mono text-gray-200">S = EMA₁₀(0.65 × 科技长期趋势 + 0.35 × 科技相对标普)</span></div>
+        <div class="mono">原始目标 Net：<span id="rawTargetNet" class="text-gray-200">--</span>（15% 缓冲区 · <span id="netShortShare">--</span> 历史时间净空）</div>
+        <div class="text-[11px] text-gray-500">映射锚点：S=+0.65 → +120% ｜ S=0 → +45% ｜ S=-0.42 → 0% ｜ S=-0.65 → -25%</div>
       </div>
     </div>
 
@@ -194,6 +195,89 @@
         <div class="flex justify-between">
           <span class="text-gray-300 font-medium">Overlay 执行方案 B (MNQ 纳指微期货, $2/点)</span>
           <span id="outMNQ" class="mono font-bold text-emerald-400">--</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Auxiliary Decision Radar: Credit Spread & VIX/VIX3M -->
+  <section class="card p-5 space-y-4 border-amber-500/25">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5 flex-wrap">
+        <span class="px-2 py-0.5 text-[11px] font-semibold rounded bg-amber-900/50 text-amber-300 border border-amber-700/50">辅助决策雷达</span>
+        <h2 class="text-sm font-semibold text-white">信用利差 &amp; VIX/VIX3M 期限结构（独立参考 · 不掺入主模型公式）</h2>
+      </div>
+      <span class="text-xs text-gray-400">仅在极端红/绿灯触发时作为人工额外加减仓的增强依据</span>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <!-- Radar 1: Credit Spread -->
+      <div class="p-4 rounded-xl bg-gray-900/80 border border-gray-800 space-y-3">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <div class="text-sm font-semibold text-white">雷达 A：信用利差代理（高收益债 / 中期美债）</div>
+            <div class="text-xs text-gray-400 mt-0.5 mono">VWEHX / VFITX 相对 120 日均线 · 监测金融体系抽水</div>
+          </div>
+          <span id="radarCreditBadge" class="px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap">--</span>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 text-center bg-gray-950/70 rounded-lg p-2.5 border border-gray-800/80 mono">
+          <div>
+            <div class="text-[11px] text-gray-400 font-sans">当前比值</div>
+            <div id="rcRatio" class="text-sm font-bold text-white mt-0.5">--</div>
+          </div>
+          <div>
+            <div class="text-[11px] text-gray-400 font-sans">偏离 120D 均线</div>
+            <div id="rcDev" class="text-sm font-bold mt-0.5">--</div>
+          </div>
+          <div>
+            <div class="text-[11px] text-gray-400 font-sans">近 20 日变化</div>
+            <div id="rcChg20" class="text-sm font-bold mt-0.5">--</div>
+          </div>
+        </div>
+
+        <div id="rcLiveHint" class="text-xs text-gray-200 bg-gray-800/60 rounded-lg p-2.5 leading-relaxed border-l-2 border-sky-500">--</div>
+
+        <div class="text-xs text-gray-400 space-y-1.5 pt-1 border-t border-gray-800/80 leading-relaxed">
+          <div class="text-gray-200 font-medium">怎么用 / 什么时候额外考虑加减仓？</div>
+          <div>• <span class="text-rose-400 font-medium">额外减仓（防 2008 式信贷危机）</span>：当偏离 120D 均线跌破 <span class="mono text-gray-200">-1.5%</span>（红灯）或跌破均线且 20 日急跌 <span class="mono text-gray-200">&gt;1%</span>，说明债市机构已全面去风险；若此时主模型 Net 仍高，可<span class="text-white">提前手动多降 15%–25% Net 并压低 Gross</span>。</div>
+          <div>• <span class="text-emerald-400 font-medium">辅助加仓（熊市见底先行信号）</span>：大熊市末期信用市场往往领先股市见底；当比值率先重回 120D 均线上方（转绿灯）且 20 日动量转正，可提前平掉指数空头、为主模型翻多增强信心。</div>
+          <div>• <span class="text-gray-300">为什么不放进主公式</span>：27 年实测显示常驻加权会在 AI 长牛期拖累约 1.5%/年收益，作为独立危机安全阀性价比最高。</div>
+        </div>
+      </div>
+
+      <!-- Radar 2: VIX / VIX3M Term Structure -->
+      <div class="p-4 rounded-xl bg-gray-900/80 border border-gray-800 space-y-3">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <div class="text-sm font-semibold text-white">雷达 B：波动率期限结构（^VIX / ^VIX3M）</div>
+            <div class="text-xs text-gray-400 mt-0.5 mono">1个月恐慌 vs 3个月恐慌 · 识别踩踏底与右侧回补点</div>
+          </div>
+          <span id="radarVixBadge" class="px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap">--</span>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 text-center bg-gray-950/70 rounded-lg p-2.5 border border-gray-800/80 mono">
+          <div>
+            <div class="text-[11px] text-gray-400 font-sans">当前 VIX / VIX3M</div>
+            <div id="rvRatio" class="text-sm font-bold text-white mt-0.5">--</div>
+          </div>
+          <div>
+            <div class="text-[11px] text-gray-400 font-sans">近 40 日峰值</div>
+            <div id="rvMax40" class="text-sm font-bold text-amber-300 mt-0.5">--</div>
+          </div>
+          <div>
+            <div class="text-[11px] text-gray-400 font-sans">基准 vs 50D 线</div>
+            <div id="rvMa50" class="text-sm font-bold mt-0.5">--</div>
+          </div>
+        </div>
+
+        <div id="rvLiveHint" class="text-xs text-gray-200 bg-gray-800/60 rounded-lg p-2.5 leading-relaxed border-l-2 border-amber-500">--</div>
+
+        <div class="text-xs text-gray-400 space-y-1.5 pt-1 border-t border-gray-800/80 leading-relaxed">
+          <div class="text-gray-200 font-medium">怎么用 / 什么时候额外考虑加减仓？</div>
+          <div>• <span class="text-emerald-400 font-medium">额外加仓（高胜率右侧回补点）</span>：近 40 个交易日内出现过倒挂（<span class="mono text-gray-200">&gt;1.03</span>），随后比值重新回落至 <span class="mono text-gray-200">&lt;0.94</span> <span class="text-white">且</span>基准站回 50 日均线上方（绿灯）——说明恐慌对冲盘已出清，若主模型 Net 仍低于 +65%，可<span class="text-white">提前手动分批加回多头至 +65% 附近</span>（实证可显著缓解 V 型反转踏空）。</div>
+          <div>• <span class="text-rose-400 font-medium">严控 Gross · 严禁追空（红灯倒挂期）</span>：当 <span class="mono text-gray-200">VIX/VIX3M ≥ 1.03</span> 时市场处于极端恐慌（实证倒挂后 60 日科技股平均反弹 <span class="mono text-emerald-400">+6.8%</span>）。此时应把 <span class="text-white">Gross 压低到 60%–80%</span> 防多空双杀，但<span class="text-white">不要在倒挂时恐慌割肉或新建净空头</span>。</div>
+          <div>• <span class="text-gray-300">为什么不直接做减仓刹车</span>：急跌一倒挂就砍仓虽能减少 2020 闪崩回撤，但多数时候会卖在恐慌底部、翻倍推高换手率。</div>
         </div>
       </div>
     </div>
@@ -364,7 +448,6 @@
 
     const fmtPct = (v, sign = false) => `${sign && v > 0 ? '+' : ''}${(v * 100).toFixed(1)}%`;
 
-    // Custom Chart.js plugin: crisp dashed 0% reference line on netChart
     const zeroLinePlugin = {
       id: 'zeroLinePlugin',
       afterDatasetsDraw(chart) {
@@ -387,10 +470,8 @@
 
     function renderFactorBars(scores) {
       const items = [
-        { name: '长期趋势动量 (45%)', val: scores.trend },
-        { name: '科技相对标普强弱 (25%)', val: scores.rel_spx },
-        { name: '60日持续波动体制 (15%)', val: scores.vol_regime },
-        { name: '信用趋势与利率冲击 (15%)', val: scores.macro },
+        { name: '绝对共识 · 科技长期趋势 (65%)', desc: '相对 200D 均线距离 + 50/200 均线结构', val: scores.trend },
+        { name: '相对共识 · 科技相对标普 (35%)', desc: 'Tech / ^GSPC 相对 150D 均线强弱', val: scores.lead },
       ];
       const container = document.getElementById('factorBars');
       container.innerHTML = items.map(it => {
@@ -401,34 +482,58 @@
         const textColor = isPos ? 'text-emerald-400' : 'text-rose-400';
         return `
           <div>
-            <div class="flex justify-between text-xs mb-1">
-              <span class="text-gray-300">${it.name}</span>
-              <span class="mono font-semibold ${textColor}">${val >= 0 ? '+' : ''}${val.toFixed(2)}</span>
+            <div class="flex justify-between items-baseline text-xs mb-1">
+              <span class="text-gray-200 font-medium">${it.name}</span>
+              <span class="mono font-bold text-sm ${textColor}">${val >= 0 ? '+' : ''}${val.toFixed(2)}</span>
             </div>
-            <div class="w-full h-2 bg-gray-800 rounded-full overflow-hidden flex">
+            <div class="w-full h-2.5 bg-gray-800 rounded-full overflow-hidden flex">
               <div class="w-1/2 flex justify-end">${!isPos ? `<div class="${barColor} h-full" style="width:${pct}%"></div>` : ''}</div>
               <div class="w-1/2 flex justify-start">${isPos ? `<div class="${barColor} h-full" style="width:${pct}%"></div>` : ''}</div>
             </div>
+            <div class="text-[11px] text-gray-500 mt-1">${it.desc}</div>
           </div>`;
       }).join('');
     }
 
-    function renderGates(gates) {
-      const defs = [
-        { key: 'secular_bull', label: '长期牛市底仓 (+85%)', activeCls: 'bg-emerald-900/50 text-emerald-300 border-emerald-700/60' },
-        { key: 'secular_bear', label: '长期熊市防诱多封顶 (+5%)', activeCls: 'bg-rose-900/50 text-rose-300 border-rose-700/60' },
-        { key: 'vix_capitulation', label: 'VIX>40 恐慌平空保护', activeCls: 'bg-amber-900/50 text-amber-300 border-amber-700/60' },
-      ];
-      document.getElementById('gateBadges').innerHTML = defs.map(d => {
-        const on = gates && gates[d.key];
-        const cls = on ? d.activeCls : 'bg-gray-900 text-gray-500 border-gray-800';
-        return `<span class="px-2 py-0.5 rounded border ${cls}">${on ? '● ' : '○ '}${d.label}</span>`;
-      }).join('');
+    function applyRadarBadge(el, level, label) {
+      el.textContent = label;
+      const styles = {
+        danger: 'bg-rose-950/70 text-rose-300 border-rose-700/70',
+        warn: 'bg-amber-950/70 text-amber-300 border-amber-700/70',
+        ok: 'bg-emerald-950/70 text-emerald-300 border-emerald-700/70',
+        normal: 'bg-sky-950/70 text-sky-300 border-sky-700/70',
+      };
+      el.className = `px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${styles[level] || styles.normal}`;
+    }
+
+    function renderRadar(radar) {
+      if (!radar) return;
+      const cr = radar.credit;
+      const vt = radar.vix_term;
+
+      applyRadarBadge(document.getElementById('radarCreditBadge'), cr.level, cr.label);
+      document.getElementById('rcRatio').textContent = cr.ratio.toFixed(4);
+      const rcDevEl = document.getElementById('rcDev');
+      rcDevEl.textContent = `${cr.dev_pct >= 0 ? '+' : ''}${(cr.dev_pct * 100).toFixed(2)}%`;
+      rcDevEl.className = `text-sm font-bold mt-0.5 ${cr.dev_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+      const rcChgEl = document.getElementById('rcChg20');
+      rcChgEl.textContent = `${cr.chg_20d_pct >= 0 ? '+' : ''}${(cr.chg_20d_pct * 100).toFixed(2)}%`;
+      rcChgEl.className = `text-sm font-bold mt-0.5 ${cr.chg_20d_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+      document.getElementById('rcLiveHint').textContent = `当前解读：${cr.hint}`;
+
+      applyRadarBadge(document.getElementById('radarVixBadge'), vt.level, vt.label);
+      document.getElementById('rvRatio').textContent = vt.ratio != null ? vt.ratio.toFixed(3) : '--';
+      document.getElementById('vixTermKpi').textContent = vt.ratio != null ? vt.ratio.toFixed(3) : '--';
+      document.getElementById('rvMax40').textContent = vt.max_40d != null ? vt.max_40d.toFixed(3) : '--';
+      const ma50El = document.getElementById('rvMa50');
+      ma50El.textContent = vt.above_ma50 ? '上方 (站稳)' : '下方 (弱势)';
+      ma50El.className = `text-sm font-bold mt-0.5 font-sans ${vt.above_ma50 ? 'text-emerald-400' : 'text-rose-400'}`;
+      document.getElementById('rvLiveHint').textContent = `当前解读：${vt.hint}`;
     }
 
     function renderMetricsTable(metricSet) {
       const mRows = [
-        ['量化敞口策略 v2.0 (仅Beta)', metricSet.strategy, true],
+        ['量化敞口策略 v3.0 (极简共识)', metricSet.strategy, true],
         ['科技+半导体基准 (70/30)', metricSet.bench, false],
         ['QQQ (100% 满仓)', metricSet.qqq, false],
       ];
@@ -490,7 +595,6 @@
       fill.style.left = `${leftPct}%`;
       fill.style.width = `${Math.max(0.8, rightPct - leftPct)}%`;
 
-      // Rebase Strategy NAV & NDX to 1.00 at left edge of current visible window (minI)
       const hasRight = SHOW_NAV_OVERLAY || SHOW_NDX_OVERLAY;
       const baseNav = (NET_NAV[minI] && NET_NAV[minI] > 0) ? NET_NAV[minI] : 1;
       const baseNdx = (NET_NDX[minI] && NET_NDX[minI] > 0) ? NET_NDX[minI] : 1;
@@ -503,7 +607,6 @@
         needsChartUpdate = true;
       }
 
-      // Count switches inside current visible window & auto-fit right relative performance axis
       let switches = 0;
       let perfMin = Infinity, perfMax = -Infinity;
       const navRelArr = NET_CHART.data.datasets[1].data;
@@ -635,7 +738,7 @@
         data: {
           labels: series.dates,
           datasets: [
-            { label: '量化敞口策略 v2.0 (仅Beta层)', data: series.strat_nav, borderColor: '#38bdf8', borderWidth: 2, pointRadius: 0 },
+            { label: '量化敞口策略 v3.0 (仅Beta层)', data: series.strat_nav, borderColor: '#38bdf8', borderWidth: 2, pointRadius: 0 },
             { label: '科技+半导体基准 (70/30)', data: series.bench_nav, borderColor: '#64748b', borderWidth: 1.5, pointRadius: 0 },
             { label: 'QQQ (100% 满仓)', data: series.qqq_nav, borderColor: '#475569', borderDash: [4, 4], borderWidth: 1.2, pointRadius: 0 },
           ]
@@ -671,7 +774,6 @@
         }
       });
 
-      // Daily Net Exposure Chart with X-axis pan & zoom + Strategy NAV & NDX overlays
       const dn = data.daily_net || {
         dates: series.dates,
         exec_net: series.exec_net,
@@ -845,7 +947,7 @@
                   }
                   if (NET_SCORES[idx] != null) {
                     const s = NET_SCORES[idx];
-                    lines.push(`综合得分 S (12D EMA): ${s >= 0 ? '+' : ''}${s.toFixed(2)}`);
+                    lines.push(`综合共识得分 S (10D EMA): ${s >= 0 ? '+' : ''}${s.toFixed(2)}`);
                   }
                   return lines;
                 }
@@ -883,10 +985,8 @@
         }
       });
 
-      // Double-click canvas to reset zoom
       document.getElementById('netChart').addEventListener('dblclick', () => applyNetPreset('all'));
 
-      // Dual range slider listeners
       startInput.addEventListener('input', () => {
         let s = parseInt(startInput.value, 10);
         let e = parseInt(endInput.value, 10);
@@ -906,7 +1006,6 @@
         setNetWindow(s, e, true);
       });
 
-      // Drag middle highlight bar to pan smoothly
       const fillEl = document.getElementById('rangeFill');
       const scrubberEl = document.getElementById('rangeScrubber');
       let draggingFill = false, dragStartX = 0, initStart = 0, initEnd = 0;
@@ -1027,6 +1126,9 @@
           document.getElementById('btRange').textContent = `${data.backtest_range.start} ~ ${data.backtest_range.end}`;
           document.getElementById('turnoverVal').textContent = `${data.backtest_range.annual_turnover.toFixed(2)}x`;
           document.getElementById('rebalCount').textContent = data.backtest_range.rebalance_count;
+          if (data.backtest_range.net_short_pct != null) {
+            document.getElementById('netShortShare').textContent = `${(data.backtest_range.net_short_pct * 100).toFixed(1)}%`;
+          }
         }
         document.getElementById('updatedAt').textContent = data.updated_at_utc;
         document.getElementById('regimeLabel').textContent = l.regime.label;
@@ -1037,7 +1139,6 @@
         document.getElementById('scoreS').style.color = l.regime.color;
         document.getElementById('scoreSRaw').textContent = l.S_raw != null ? ((l.S_raw >= 0 ? '+' : '') + l.S_raw.toFixed(2)) : '--';
         document.getElementById('vixVal').textContent = l.vix.toFixed(2);
-        document.getElementById('us10yVal').textContent = l.us10y.toFixed(2);
 
         document.getElementById('targetNet').textContent = fmtPct(l.exec_net, true);
         document.getElementById('rawTargetNet').textContent = fmtPct(l.target_net ?? l.exec_net, true);
@@ -1050,7 +1151,7 @@
         document.getElementById('ndxPrice').textContent = l.ndx_price.toFixed(0);
 
         renderFactorBars(l.scores);
-        renderGates(l.gates);
+        renderRadar(data.radar);
         updateHedgeCalc();
         renderCharts(data);
         bindNetToolbar();
@@ -1093,11 +1194,11 @@
       document.getElementById('btnFullM').classList.remove('active');
       if (GLOBAL_DATA && GLOBAL_DATA.oos_metrics) renderMetricsTable(GLOBAL_DATA.oos_metrics);
     });
-    // Strategy Intro collapse toggle (persisted in localStorage)
+
     (function setupIntroToggle() {
       const btn = document.getElementById('btnToggleIntro');
       const body = document.getElementById('introBody');
-      const key = 'quant_intro_collapsed_v2';
+      const key = 'quant_intro_collapsed_v3';
       const applyState = (collapsed) => {
         body.classList.toggle('hidden', collapsed);
         btn.textContent = collapsed ? '展开简介' : '收起简介';

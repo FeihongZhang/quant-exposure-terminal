@@ -1,24 +1,25 @@
-# Tech / AI 量化敞口管理终端（v2.0）
+# Tech / AI 量化敞口管理终端（v3.0 极简市场共识版）
 
-面向美股为主、聚焦 AI/科技股的 **Long-Biased 多空组合**，将“个股 Alpha 研究”与“市场 Beta / 杠杆敞口管理”解耦的系统化敞口管理层（Systematic Exposure Overlay）。
+面向美股为主、聚焦 AI/科技股的 **Long-Biased 多空组合**，以第一性原理最小化精简为核心，将“个股 Alpha 研究”与“市场 Beta / 杠杆敞口管理”彻底解耦。
 
-## 核心设计（v2.0）
-- **敞口约束**：`Gross 60% ~ 150%` ｜ `Net -25% ~ +120%` ｜ `12 日 EMA 平滑` ｜ `15% Net 调仓缓冲区`
-- **四维度方向打分（$S \in [-1, +1]$）**：
-  1. **长期趋势与动量（45%）**：`QQQ (70%) + ^SOX (30%)` 波动率归一化 100D/200D 均线距离 + 50/200 结构 + 126D 动量
-  2. **科技相对标普领导力（25%）**：`Tech / ^GSPC` 相对 100D/200D 均线强弱
-  3. **持续波动率体制（15%）**：60 日实现波动率 `RV60`（区分平静牛市与结构性高波熊市）
-  4. **信用趋势与非对称利率冲击（15%）**：`VWEHX / VFITX` 长期趋势 + 美债 10Y 急升单边惩罚
-- **三重结构化门控**：
-  - 长期熊市防诱多封顶（`P < MA200` 且 `MA50 < MA200` → Net ≤ `+5%`）
-  - 长期牛市底仓保护（`P > MA200`、`MA50 > MA200`、科技跑赢标普且 `RV60 < 35%` → Net ≥ `+85%`）
-  - 极端恐慌平空保护（`VIX > 40` 不留净空头防逼空）
-- **Gross 杠杆风控层（与方向解耦）**：由 20 日实现波动率（目标 28%）与短期 VIX 恐慌惩罚（`VIX > 32` 或 `VIX / MA60 > 1.30` 打 8 折）驱动。
+## 核心架构（v3.0 · 2 共识因子 + 1 波动率风控 · 零硬门控）
+- **观测基准**：`70% QQQ + 30% ^SOX`（纳指 100 + 费城半导体）
+- **敞口范围**：`Gross 60% ~ 150%` ｜ `Net -25% ~ +120%` ｜ `10 日 EMA 平滑` ｜ `15% Net 调仓缓冲区`
+- **方向层（仅 2 个纯市场共识因子）**：
+  1. **绝对共识 · 科技长期趋势（65%）**：波动率归一化 200D 均线距离（60%）+ 50/200 均线结构（40%）
+  2. **相对共识 · 科技相对标普领导力（35%）**：`Tech / ^GSPC` 相对 150D 均线强弱
+  - 单一连续非对称映射（`S=0 → +45%`，`S=+0.65 → +120%`，`S=-0.42 → 0%`，`S=-0.65 → -25%`）
+- **杠杆层（与方向解耦）**：`Target Gross = clip(150% × (28% / RV20), 60%, 150%)`
 
-## GitHub 每日自动更新与 Pages 上线步骤
-1. 在仓库 **Settings → Actions → General → Workflow permissions** 勾选 **Read and write permissions** 并保存。
-2. 在 **Settings → Pages** 中将 Branch 设为 `main` / `/ (root)` 并保存，等待 1–2 分钟生成专属监控网址。
-3. （可选）在 **Settings → Secrets and variables → Actions** 添加推送密钥：
-   - 飞书：`FEISHU_WEBHOOK_URL`
-   - Telegram：`TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`
-4. 每个美股交易日收盘前 30 分钟（UTC 19:30 / 20:30），GitHub Actions 会自动运行 `update_data.py` 更新 `data/latest_data.json` 并推送日报。
+## 独立辅助决策雷达（不进入主公式，用于极端情景人工微调）
+1. **信用利差代理（`VWEHX / VFITX` 相对 120 日均线）**：
+   - 偏离跌破 `-1.5%`（红灯）时预警系统性信贷收缩，可提前手动多降 15%–25% Net 并压低 Gross；
+   - 大熊市末期率先站回 120 日均线上方（转绿灯）时，可增强右侧加仓信心。
+2. **波动率期限结构（`^VIX / ^VIX3M`）**：
+   - 处于倒挂（`≥ 1.03`，红灯）时严控 Gross、严禁恐慌追空；
+   - 近 40 日发生倒挂后重新回落至 `< 0.94` 且基准站回 50 日均线上方（绿灯），为高胜率右侧回补加仓窗口。
+
+## GitHub 每日自动更新与 Pages 上线
+1. **Settings → Actions → General → Workflow permissions**：勾选 **Read and write permissions** 并保存。
+2. **Settings → Pages**：Branch 选择 `main` / `/ (root)` 并保存。
+3. （可选）在 **Settings → Secrets and variables → Actions** 配置 `FEISHU_WEBHOOK_URL` 或 `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`。
