@@ -54,6 +54,55 @@
   <!-- Loading / Error Banner -->
   <div id="statusBanner" class="hidden p-4 rounded-lg bg-red-900/40 border border-red-700 text-red-200 text-sm"></div>
 
+  <!-- Strategy Overview Card (Top of Dashboard) -->
+  <section class="card p-5 space-y-4 border-sky-500/25">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5 flex-wrap">
+        <span class="px-2 py-0.5 text-[11px] font-semibold rounded bg-sky-900/60 text-sky-300 border border-sky-700/50">策略简介</span>
+        <h2 class="text-sm font-semibold text-white">核心逻辑：Alpha 与 Beta 解耦 · 方向（Net）与杠杆（Gross）解耦</h2>
+      </div>
+      <button id="btnToggleIntro" class="self-start sm:self-auto px-2.5 py-1 text-xs rounded border border-gray-700 text-gray-300 hover:bg-gray-800">收起简介</button>
+    </div>
+
+    <div id="introBody" class="space-y-4">
+      <p class="text-xs md:text-sm text-gray-300 leading-relaxed">
+        本系统面向美股 AI / 科技 <span class="text-white font-medium">Long-Biased 多空组合</span>，以 <span class="mono text-sky-300">70% QQQ + 30% ^SOX</span> 为 Beta 观测锚，不干预个股选股，仅通过客观量化信号动态管控组合的 <span class="text-amber-300 font-medium">Target Net（-25% ~ +120%）</span> 与 <span class="text-sky-300 font-medium">Target Gross（60% ~ 150%）</span>。实盘保留高确信 AI 核心多头不动，通过做空/平空 <span class="mono text-gray-100">QQQ</span> 或 <span class="mono text-gray-100">MNQ</span> 纳指微期货调节 Beta-Adjusted Net，并以 <span class="mono text-gray-100">15%</span> 调仓缓冲区抑制高频磨损。
+      </p>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs leading-relaxed">
+        <!-- Box 1: Architecture -->
+        <div class="p-3.5 rounded-lg bg-gray-900/70 border border-gray-800 space-y-1.5">
+          <div class="font-semibold text-sky-300">① 四层信号与风控构成</div>
+          <ul class="space-y-1 text-gray-300 list-disc list-inside">
+            <li><span class="text-white">方向打分（12D EMA）</span>：长期趋势 45%（100/200D 均线+126D 动量）、科技相对标普 25%（Tech/^GSPC）、60D 波动体制 15%、信用趋势与非对称利率冲击 15%。</li>
+            <li><span class="text-white">三重硬门控</span>：长期牛市保底 <span class="mono text-emerald-400">+85%</span>、熊市防诱多封顶 <span class="mono text-rose-400">+5%</span>、<span class="mono text-amber-300">VIX&gt;40</span> 极端恐慌不留净空。</li>
+            <li><span class="text-white">独立 Gross 层</span>：由 28% 目标波动率（对比 20D 实现波动率）+ 短期 VIX 恐慌 8 折驱动，防高波多空双杀。</li>
+          </ul>
+        </div>
+
+        <!-- Box 2: Strengths & When it works -->
+        <div class="p-3.5 rounded-lg bg-emerald-950/20 border border-emerald-900/50 space-y-1.5">
+          <div class="font-semibold text-emerald-400">② 核心长处 · 什么时候最有效</div>
+          <ul class="space-y-1 text-gray-300 list-disc list-inside">
+            <li><span class="text-white">慢熊与流动性紧缩</span>：2000–02、2008、2022 等估值杀周期中逐层降 Net 压 Gross，守住长期复利本金基数（27 年最大回撤从 -83% 压至 -29.4%）。</li>
+            <li><span class="text-white">科技/AI 结构性主升浪</span>：牛市底仓门控 + 最高 +120% 净多，容忍常规 5–10% 洗盘不轻易踏空。</li>
+            <li><span class="text-white">资金风格切换期</span>：科技相对标普强弱往往先于大盘发出预警；年化换手仅 <span class="mono">2.41x</span>，实盘摩擦极低。</li>
+          </ul>
+        </div>
+
+        <!-- Box 3: Weaknesses & Failure modes -->
+        <div class="p-3.5 rounded-lg bg-rose-950/20 border border-rose-900/50 space-y-1.5">
+          <div class="font-semibold text-rose-400">③ 短板与代价 · 什么时候可能失效</div>
+          <ul class="space-y-1 text-gray-300 list-disc list-inside">
+            <li><span class="text-white">黑天鹅垂直闪崩 + 极速 V 反</span>：如 2020.03 疫情熔断，右侧中长均线天然滞后，会先吃前半段急跌并踏空最左侧反弹。</li>
+            <li><span class="text-white">宽幅无趋势拉锯震荡</span>：指数围绕 100/200 日线长期上下假突破时（如 2015–16 初）仍会产生少量磨损。</li>
+            <li><span class="text-white">极致零回撤疯牛 / 个股逼空</span>：疯牛阶段纯 Beta 可能略跑输满仓基准；若多空个股 Alpha 反向逼空，需严守低 Gross 上限。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Top KPI Cards -->
   <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
     <div class="card p-5">
@@ -1044,6 +1093,25 @@
       document.getElementById('btnFullM').classList.remove('active');
       if (GLOBAL_DATA && GLOBAL_DATA.oos_metrics) renderMetricsTable(GLOBAL_DATA.oos_metrics);
     });
+    // Strategy Intro collapse toggle (persisted in localStorage)
+    (function setupIntroToggle() {
+      const btn = document.getElementById('btnToggleIntro');
+      const body = document.getElementById('introBody');
+      const key = 'quant_intro_collapsed_v2';
+      const applyState = (collapsed) => {
+        body.classList.toggle('hidden', collapsed);
+        btn.textContent = collapsed ? '展开简介' : '收起简介';
+      };
+      let collapsed = false;
+      try { collapsed = localStorage.getItem(key) === '1'; } catch (_) {}
+      applyState(collapsed);
+      btn.addEventListener('click', () => {
+        collapsed = !collapsed;
+        applyState(collapsed);
+        try { localStorage.setItem(key, collapsed ? '1' : '0'); } catch (_) {}
+      });
+    })();
+
     init();
   </script>
 </body>
