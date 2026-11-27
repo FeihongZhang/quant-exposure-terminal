@@ -25,17 +25,18 @@ import numpy as np
 from datetime import datetime, timezone
 
 CONFIG = {
-    "model_version": "v3.0",
+    "model_version": "v3.1",
     "start_date": "1999-03-10",
     "max_gross": 1.50,          # Gross 上限 150%
-    "min_gross": 0.60,          # 极端高波保留最低 Gross 60%
+    "min_gross": 0.00,          # 灵活 Gross 下限 0%（允许极端混乱期全现金观望）
+    "cash_mode_rv20": 0.45,     # 全现金触发线：共识转弱 (S<0) 且 20D 波动率 > 45%
     "max_net": 1.20,            # 强共识最高 Net +120%
     "min_net": -0.25,           # 共识瓦解最低 Net -25%
     "neutral_anchor_net": 0.45, # Long-Biased 偏多中枢：S=0 对应 +45% Net
     "score_full_scale": 0.65,   # S=±0.65 触及上下限，避免双曲正切末端钝化
     "target_vol_gross": 0.28,   # 独立 Gross 目标波动率 28%（仅由 RV20 驱动）
     "ema_span": 10,             # 综合共识得分 10 日 EMA 平滑
-    "rebalance_buffer": 0.15,   # 15% Net 调仓缓冲区（年化换手约 1.5x）
+    "rebalance_buffer": 0.15,   # 15% Net 调仓缓冲区（年化换手约 1.8x）
     "margin_spread": 0.015,     # 杠杆融资点差（无风险利率 + 1.5%）
     "tx_cost": 0.0005,          # 单边交易滑点与冲击成本 5bp
 }
@@ -54,7 +55,13 @@ def map_net(s: float) -> float:
         return max(CONFIG["min_net"], anchor + (s / scale) * (anchor - CONFIG["min_net"]))
 
 
-def get_regime(s: float) -> dict:
+def get_regime(s: float, cash_mode: bool = False) -> dict:
+    if cash_mode:
+        return {
+            "label": "全现金观望（极端高波转弱）",
+            "color": "#c084fc",
+            "action": "共识转弱 (S<0) 叠加 20 日波动率 >45%：清仓至 Gross 0% / Net 0% 持币吃短债息，彻底避开多空双杀",
+        }
     if s >= 0.35:
         return {
             "label": "强多头（主升浪共识）",
@@ -295,7 +302,7 @@ def send_notifications(payload: dict):
     vt_str = f"{vt['ratio']:.3f}" if vt["ratio"] is not None else "--"
 
     msg = (
-        f"📊 科技/AI 量化敞口日报 v3.0 极简共识版 ({latest['date']})\n"
+        f"📊 科技/AI 量化敞口日报 {CONFIG['model_version']} 极简共识版 ({latest['date']})\n"
         f"状态：{latest['regime']['label']}\n"
         f"综合共识得分 S：{latest['S']:+.2f}\n"
         f"• 科技长期趋势 (65%): {latest['scores']['trend']:+.2f}\n"
@@ -373,29 +380,39 @@ def main():
     df["S"] = df["S_raw"].ewm(span=CONFIG["ema_span"], adjust=False).mean().clip(-1, 1)
 
     # ==========================================
-    # 单一平滑 Net 映射 + 独立波动率 Gross 风控层
+    # 单一平滑 Net 映射 + 独立波动率 Gross 风控层 (v3.1 方案 D: 0%~150% + 全现金模式)
     # ==========================================
     df["raw_net"] = df["S"].apply(map_net)
 
-    # Gross 仅由 20D 实现波动率目标法驱动（与方向彻底解耦）
-    vol_scalar = (CONFIG["target_vol_gross"] / rv20).clip(0.40, 1.00)
-    df["target_gross"] = (CONFIG["max_gross"] * vol_scalar).clip(
-        CONFIG["min_gross"], CONFIG["max_gross"]
-    )
-    df["target_net"] = np.clip(df["raw_net"], -df["target_gross"], df["target_gross"])
+    # Gross 仅由 20D 实现波动率目标法驱动（下限放开至 0%）
+    vol_scalar = (CONFIG["target_vol_gross"] / rv20).clip(0.00, 1.00)
+    base_gross = (CONFIG["max_gross"] * vol_scalar).clip(CONFIG["min_gross"], CONFIG["max_gross"])
 
-    # 15% 调仓缓冲区（No-Trade Buffer）
+    # 极端高波转弱全现金观望模式：当共识转弱 (S < 0) 且 20D 实现波动率 > 45% -> 强制 Gross=0%, Net=0%
+    cash_mode_series = (df["S"] < 0.0) & (rv20 > CONFIG["cash_mode_rv20"])
+    df["cash_mode"] = cash_mode_series
+    df["target_gross"] = np.where(cash_mode_series, 0.0, base_gross)
+    raw_net_eff = np.where(cash_mode_series, 0.0, df["raw_net"])
+    df["target_net"] = np.clip(raw_net_eff, -df["target_gross"], df["target_gross"])
+
+    # 15% 调仓缓冲区（全现金模式下强制归零，确保 |exec_net| <= target_gross=0）
     exec_net = [0.50]
-    for val in df["target_net"].iloc[1:]:
+    for i in range(1, len(df)):
+        val = df["target_net"].iloc[i]
+        cm = bool(cash_mode_series.iloc[i])
         if pd.isna(val):
             exec_net.append(exec_net[-1])
+        elif cm:
+            exec_net.append(0.0)
         elif abs(val - exec_net[-1]) >= CONFIG["rebalance_buffer"]:
             exec_net.append(float(val))
         else:
             exec_net.append(exec_net[-1])
     df["exec_net"] = exec_net
-    df["target_long"] = (df["target_gross"] + df["exec_net"]) / 2
-    df["target_short"] = (df["target_gross"] - df["exec_net"]) / 2
+    # 确保逻辑上参考多空始终满足 Gross >= |exec_net|（若缓冲保留了旧 Net 且未触发全现金，显示上界）
+    eff_gross_disp = np.where(cash_mode_series, 0.0, np.maximum(df["target_gross"], np.abs(df["exec_net"])))
+    df["target_long"] = (eff_gross_disp + df["exec_net"]) / 2
+    df["target_short"] = (eff_gross_disp - df["exec_net"]) / 2
 
     # ==========================================
     # 回测引擎（200 日均线预热后，严格 T-1 信号执行 T 日收益）
@@ -424,6 +441,7 @@ def main():
     annual_turnover = float(turnover.sum() / (len(bt) / 252.0))
     rebalance_count = int((turnover > 0).sum())
     net_short_pct = float((bt["exec_net"] < 0).mean())
+    cash_mode_pct = float(bt["cash_mode"].mean())
 
     crises_def = [
         ("2000-2002 互联网泡沫", "2000-03-01", "2002-10-31"),
@@ -491,6 +509,7 @@ def main():
             "annual_turnover": round(annual_turnover, 2),
             "rebalance_count": rebalance_count,
             "net_short_pct": round(net_short_pct, 4),
+            "cash_mode_pct": round(cash_mode_pct, 4),
         },
         "latest": {
             "date": latest_date,
@@ -532,7 +551,8 @@ def main():
             "target_gross": round(float(latest_row["target_gross"]), 4),
             "target_long": round(float(latest_row["target_long"]), 4),
             "target_short": round(float(latest_row["target_short"]), 4),
-            "regime": get_regime(float(latest_row["S"])),
+            "cash_mode": bool(latest_row["cash_mode"]),
+            "regime": get_regime(float(latest_row["S"]), bool(latest_row["cash_mode"])),
         },
         "radar": radar_snapshot,
         "metrics": metrics_obj,
@@ -571,10 +591,10 @@ def main():
         json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
 
     print(
-        f"\n=== v3.0 极简共识版 全周期绩效 ({bt.index[0].strftime('%Y-%m-%d')} ~ {latest_date}, 共 {len(bt)} 交易日) ==="
+        f"\n=== {CONFIG['model_version']} 极简共识版 全周期绩效 ({bt.index[0].strftime('%Y-%m-%d')} ~ {latest_date}, 共 {len(bt)} 交易日) ==="
     )
     for label, key in [
-        ("量化敞口策略 v3.0 (仅Beta)", "strategy"),
+        (f"量化敞口策略 {CONFIG['model_version']} (仅Beta)", "strategy"),
         ("科技+半导体基准 (70/30)", "bench"),
         ("QQQ (100% 满仓)", "qqq"),
     ]:
@@ -583,11 +603,11 @@ def main():
             f"  {label:24s} | CAGR={m['cagr']:6.2%} | Vol={m['vol']:6.2%} | "
             f"Sharpe={m['sharpe']:5.2f} | MaxDD={m['mdd']:7.2%} | Calmar={m['calmar']:5.2f}"
         )
-    print(f"  策略年化换手率: {annual_turnover:.2f}x | 总调仓次数: {rebalance_count} | Net<0 占比: {net_short_pct:.1%}")
+    print(f"  策略年化换手率: {annual_turnover:.2f}x | 总调仓次数: {rebalance_count} | Net<0 占比: {net_short_pct:.1%} | 全现金占比: {cash_mode_pct:.1%}")
 
     print("\n=== 样本外校验 (2016-01-01 ~ 至今) ===")
     for label, key in [
-        ("量化敞口策略 v3.0 (OOS)", "strategy"),
+        (f"量化敞口策略 {CONFIG['model_version']} (OOS)", "strategy"),
         ("科技+半导体基准 (OOS)", "bench"),
         ("QQQ 满仓 (OOS)", "qqq"),
     ]:

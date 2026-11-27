@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tech/AI 量化敞口管理终端 v3.0 极简共识版</title>
+  <title>Tech/AI 量化敞口管理终端 v3.1 极简共识版</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
@@ -40,10 +40,10 @@
     <div>
       <div class="flex items-center gap-2.5 flex-wrap">
         <h1 class="text-2xl font-bold tracking-tight text-white">Tech / AI 量化敞口管理终端</h1>
-        <span id="modelBadge" class="px-2 py-0.5 text-xs font-semibold rounded-full bg-sky-900/60 text-sky-300 border border-sky-700/60 mono">v3.0</span>
-        <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-700/50">极简市场共识版</span>
+        <span id="modelBadge" class="px-2 py-0.5 text-xs font-semibold rounded-full bg-sky-900/60 text-sky-300 border border-sky-700/60 mono">v3.1</span>
+        <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-700/50">极简共识 · 灵活全现金版</span>
       </div>
-      <p class="text-sm text-gray-400 mt-1">Long-Biased Systematic Exposure Overlay · 2 共识因子 + 1 波动率风控 · 零硬门控 · Gross 上限 150%</p>
+      <p class="text-sm text-gray-400 mt-1">Long-Biased Systematic Exposure Overlay · 2 共识因子 + 灵活 Gross (0%~150%) · 含极端高波全现金模式</p>
     </div>
     <div class="text-right text-xs text-gray-400 mono">
       <div>最新交易日：<span id="latestDate" class="text-gray-200 font-semibold">--</span></div>
@@ -67,17 +67,17 @@
 
     <div id="introBody" class="space-y-4">
       <p class="text-xs md:text-sm text-gray-300 leading-relaxed">
-        本系统面向美股 AI / 科技 <span class="text-white font-medium">Long-Biased 多空组合</span>，将「个股 Alpha 研究」与「市场 Beta / 杠杆管理」解耦。以 <span class="mono text-sky-300">70% QQQ + 30% ^SOX</span> 为基准观测锚，通过<span class="text-white font-medium">仅 2 个纯市场共识因子</span>（无复杂门控补丁、无噪音短均线、无名义利率误判）平滑输出 <span class="text-amber-300 font-medium">Target Net（-25% ~ +120%）</span>，并由独立波动率规则约束 <span class="text-sky-300 font-medium">Target Gross（60% ~ 150%）</span>。实盘不动核心 AI 个股多头，仅用 <span class="mono text-gray-100">QQQ / MNQ</span> 对冲 Beta 缺口；同时在下方单独提供 <span class="text-emerald-300 font-medium">信用利差</span> 与 <span class="text-purple-300 font-medium">VIX/VIX3M</span> 两大辅助雷达用于极端情景下的人工微调。
+        本系统面向美股 AI / 科技 <span class="text-white font-medium">Long-Biased 多空组合</span>，将「个股 Alpha 研究」与「市场 Beta / 杠杆管理」解耦。以 <span class="mono text-sky-300">70% QQQ + 30% ^SOX</span> 为基准观测锚，通过<span class="text-white font-medium">仅 2 个纯市场共识因子</span>平滑输出 <span class="text-amber-300 font-medium">Target Net（-25% ~ +120%）</span>，并由独立波动率规则灵活管控 <span class="text-sky-300 font-medium">Target Gross（0% ~ 150%）</span>：常规期保留高确信 AI 多头并用 <span class="mono text-gray-100">QQQ / MNQ</span> 对冲缺口；当<span class="text-purple-300 font-medium">共识转弱（S&lt;0）且 20 日波动率 &gt;45%</span> 时触发<span class="text-purple-300 font-medium">「全现金观望模式」</span>，直接清仓至 Gross 0% / Net 0% 吃美债息、彻底避开多空双杀。
       </p>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs leading-relaxed">
         <!-- Box 1: Architecture -->
         <div class="p-3.5 rounded-lg bg-gray-900/70 border border-gray-800 space-y-1.5">
-          <div class="font-semibold text-sky-300">① 最小化因果公式（零门控、零黑箱）</div>
+          <div class="font-semibold text-sky-300">① 最小化因果公式（含灵活全现金风控）</div>
           <ul class="space-y-1 text-gray-300 list-disc list-inside">
             <li><span class="text-white">绝对共识（65%）</span>：科技基准相对 200D 均线距离 + 50/200 均线结构——全市场真金白银是否在持续买入科技。</li>
             <li><span class="text-white">相对共识（35%）</span>：<span class="mono">Tech / ^GSPC</span> 相对 150D 均线——风险资金是在向科技集中，还是在撤离科技。</li>
-            <li><span class="text-white">执行与杠杆</span>：10D EMA 平滑 + 单一连续非对称映射（<span class="mono">S=0 → +45%</span>）+ <span class="mono">15%</span> 缓冲区；Gross 仅由 <span class="mono">28% / RV20</span> 独立约束。</li>
+            <li><span class="text-white">杠杆与全现金模式</span>：常规 Gross 由 <span class="mono">28% / RV20</span> 缩放至 <span class="mono">0%~150%</span>；若 <span class="mono text-purple-300">S&lt;0 且 RV20&gt;45%</span> 则强制切入 <span class="mono text-purple-300">Gross 0% / Net 0%</span> 全现金观望。</li>
           </ul>
         </div>
 
@@ -85,9 +85,9 @@
         <div class="p-3.5 rounded-lg bg-emerald-950/20 border border-emerald-900/50 space-y-1.5">
           <div class="font-semibold text-emerald-400">② 核心长处 · 什么时候最有效</div>
           <ul class="space-y-1 text-gray-300 list-disc list-inside">
-            <li><span class="text-white">极简抗过拟合</span>：结构透明、年化换手仅 <span class="mono">~1.5x</span>（年均仅调仓 4–5 次），实盘执行成本极低。</li>
-            <li><span class="text-white">大牛市不踏空、慢熊自然翻空</span>：2000–02、2008、2022 全部自然切入净空（占比约 11.7%），27 年纯 Beta 复利跑赢基准与 QQQ。</li>
-            <li><span class="text-white">风格切换先知</span>：资金从科技撤向防御板块时，相对标普共识往往先于大盘指数发出减仓信号。</li>
+            <li><span class="text-white">极简抗过拟合</span>：结构透明、年化换手仅 <span class="mono">~1.8x</span>，实盘执行成本极低。</li>
+            <li><span class="text-white">拥有“空仓期权”</span>：在历史上最危险的 ~7.6% 极端高波转弱期直接空仓吃短债息，几乎零收益损耗却彻底免于多空双杀。</li>
+            <li><span class="text-white">大牛不踏空、慢熊自然翻空</span>：顺风期给足最高 +120% Net / 150% Gross，慢熊低波期自然切入净空保护净值。</li>
           </ul>
         </div>
 
@@ -95,9 +95,9 @@
         <div class="p-3.5 rounded-lg bg-rose-950/20 border border-rose-900/50 space-y-1.5">
           <div class="font-semibold text-rose-400">③ 短板与代价 · 何时借助下方辅助雷达</div>
           <ul class="space-y-1 text-gray-300 list-disc list-inside">
-            <li><span class="text-white">2008 式信贷冻结危机</span>：纯共识主模型在银行信贷崩盘初期略慢，需参考下方<span class="text-white">「信用利差雷达」</span>提前减仓。</li>
-            <li><span class="text-white">2020 式黑天鹅急跌 + V 反</span>：长期均线右侧天然滞后，暴跌末端需结合<span class="text-white">「VIX/VIX3M 雷达」</span>防追空并抓解除回补。</li>
-            <li><span class="text-white">高波个股多空背离</span>：即便 Net 中性，若多空个股反向逼空仍会亏钱，高波期务必严守 <span class="mono">60% Gross</span> 上限。</li>
+            <li><span class="text-white">2008 式信贷冻结初期</span>：纯共识主模型在信贷崩盘最初几周略慢，需参考下方<span class="text-white">「信用利差雷达」</span>提前减仓。</li>
+            <li><span class="text-white">极端高波后的极速 V 反</span>：全现金模式在暴跌末端极度安全，但重新入场需结合<span class="text-white">「VIX/VIX3M 雷达」</span>倒挂解除信号防踏空。</li>
+            <li><span class="text-white">Target Gross 是上限非下限</span>：震荡期若无高确信个股空头，不必凑满 Gross，仅保留核心仓位即可。</li>
           </ul>
         </div>
       </div>
@@ -121,8 +121,11 @@
       <div id="targetNet" class="text-3xl font-bold mono text-white mt-2">--</div>
       <div class="text-xs text-gray-400 mt-2 mono">参考多空：L <span id="refLong">--</span> / S <span id="refShort">--</span></div>
     </div>
-    <div class="card p-5">
-      <div class="text-xs text-gray-400 uppercase">Target Gross 上限</div>
+    <div class="card p-5" id="grossCard">
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-xs text-gray-400 uppercase">Target Gross 上限</div>
+        <span id="cashModeBadge" class="hidden px-2 py-0.5 text-[10px] font-semibold rounded-full bg-purple-950/80 text-purple-300 border border-purple-700/70">● 全现金模式</span>
+      </div>
       <div id="targetGross" class="text-3xl font-bold mono text-white mt-2">--</div>
       <div class="text-xs text-gray-400 mt-2 mono">20D / 60D 波动：<span id="realizedVol">--</span></div>
     </div>
@@ -190,7 +193,7 @@
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
       <div class="flex items-center gap-2.5 flex-wrap">
         <span class="px-2 py-0.5 text-[11px] font-semibold rounded bg-sky-900/60 text-sky-300 border border-sky-700/50">核心 2 因子</span>
-        <h2 class="text-sm font-semibold text-white">v3.0 核心 2 因子共识拆解（历史趋势 · 历史 ±1σ 标准差区间）</h2>
+        <h2 class="text-sm font-semibold text-white">v3.1 核心 2 因子共识拆解（历史趋势 · 历史 ±1σ 标准差区间）</h2>
         <span class="text-xs text-gray-400 mono">未平滑 S: <span id="scoreSRaw" class="text-gray-200">--</span></span>
       </div>
       <div class="flex flex-wrap items-center gap-1.5 text-xs">
@@ -207,7 +210,7 @@
 
     <div class="pt-3 border-t border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs text-gray-400">
       <div>公式：<span class="mono text-gray-200">S = EMA₁₀(0.65 × 科技长期趋势 + 0.35 × 科技相对标普)</span> ｜ 映射：S=+0.65 → +120% · S=0 → +45% · S=-0.42 → 0% · S=-0.65 → -25%</div>
-      <div class="mono">原始目标 Net：<span id="rawTargetNet" class="text-gray-200">--</span>（15% 缓冲区 · <span id="netShortShare">--</span> 历史净空）</div>
+      <div class="mono">原始目标 Net：<span id="rawTargetNet" class="text-gray-200">--</span>（15% 缓冲 · <span id="netShortShare">--</span> 净空 · <span id="cashModeShare">--</span> 全现金）</div>
     </div>
   </section>
 
@@ -1025,8 +1028,9 @@
     }
 
     function renderMetricsTable(metricSet) {
+      const ver = (GLOBAL_DATA && GLOBAL_DATA.model_version) || 'v3.1';
       const mRows = [
-        ['量化敞口策略 v3.0 (极简共识)', metricSet.strategy, true],
+        [`量化敞口策略 ${ver} (极简共识)`, metricSet.strategy, true],
         ['科技+半导体基准 (70/30)', metricSet.bench, false],
         ['QQQ (100% 满仓)', metricSet.qqq, false],
       ];
@@ -1231,7 +1235,7 @@
         data: {
           labels: series.dates,
           datasets: [
-            { label: '量化敞口策略 v3.0 (仅Beta层)', data: series.strat_nav, borderColor: '#38bdf8', borderWidth: 2, pointRadius: 0 },
+            { label: `量化敞口策略 ${(data.model_version || 'v3.1')} (仅Beta层)`, data: series.strat_nav, borderColor: '#38bdf8', borderWidth: 2, pointRadius: 0 },
             { label: '科技+半导体基准 (70/30)', data: series.bench_nav, borderColor: '#64748b', borderWidth: 1.5, pointRadius: 0 },
             { label: 'QQQ (100% 满仓)', data: series.qqq_nav, borderColor: '#475569', borderDash: [4, 4], borderWidth: 1.2, pointRadius: 0 },
           ]
@@ -1622,11 +1626,24 @@
           if (data.backtest_range.net_short_pct != null) {
             document.getElementById('netShortShare').textContent = `${(data.backtest_range.net_short_pct * 100).toFixed(1)}%`;
           }
+          if (data.backtest_range.cash_mode_pct != null) {
+            document.getElementById('cashModeShare').textContent = `${(data.backtest_range.cash_mode_pct * 100).toFixed(1)}%`;
+          }
         }
         document.getElementById('updatedAt').textContent = data.updated_at_utc;
         document.getElementById('regimeLabel').textContent = l.regime.label;
         document.getElementById('regimeLabel').style.color = l.regime.color;
         document.getElementById('regimeAction').textContent = l.regime.action;
+
+        const cmBadge = document.getElementById('cashModeBadge');
+        const grossCard = document.getElementById('grossCard');
+        if (l.cash_mode) {
+          cmBadge.classList.remove('hidden');
+          grossCard.classList.add('border-purple-500/50');
+        } else {
+          cmBadge.classList.add('hidden');
+          grossCard.classList.remove('border-purple-500/50');
+        }
 
         document.getElementById('scoreS').textContent = (l.S >= 0 ? '+' : '') + l.S.toFixed(2);
         document.getElementById('scoreS').style.color = l.regime.color;
