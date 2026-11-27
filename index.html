@@ -202,12 +202,19 @@
 
   <!-- Auxiliary Decision Radar: Credit Spread & VIX/VIX3M -->
   <section class="card p-5 space-y-4 border-amber-500/25">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
       <div class="flex items-center gap-2.5 flex-wrap">
         <span class="px-2 py-0.5 text-[11px] font-semibold rounded bg-amber-900/50 text-amber-300 border border-amber-700/50">辅助决策雷达</span>
-        <h2 class="text-sm font-semibold text-white">信用利差 &amp; VIX/VIX3M 期限结构（独立参考 · 不掺入主模型公式）</h2>
+        <h2 class="text-sm font-semibold text-white">信用利差 &amp; VIX/VIX3M 期限结构（历史趋势 · 历史 ±1σ 标准差区间）</h2>
       </div>
-      <span class="text-xs text-gray-400">仅在极端红/绿灯触发时作为人工额外加减仓的增强依据</span>
+      <div class="flex flex-wrap items-center gap-1.5 text-xs">
+        <span class="text-gray-400 mr-1">雷达视窗：</span>
+        <button data-rpreset="6m" class="radar-preset-btn px-2 py-0.5 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">近6月</button>
+        <button data-rpreset="1y" class="radar-preset-btn px-2 py-0.5 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">近1年</button>
+        <button data-rpreset="3y" class="radar-preset-btn filter-btn active px-2 py-0.5 rounded border border-gray-700 text-gray-300">近3年</button>
+        <button data-rpreset="5y" class="radar-preset-btn px-2 py-0.5 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">近5年</button>
+        <button data-rpreset="all" class="radar-preset-btn px-2 py-0.5 rounded border border-gray-700 text-gray-300 hover:bg-gray-800">全部历史</button>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -216,16 +223,12 @@
         <div class="flex items-start justify-between gap-2">
           <div>
             <div class="text-sm font-semibold text-white">雷达 A：信用利差代理（高收益债 / 中期美债）</div>
-            <div class="text-xs text-gray-400 mt-0.5 mono">VWEHX / VFITX 相对 120 日均线 · 监测金融体系抽水</div>
+            <div class="text-xs text-gray-400 mt-0.5 mono">VWEHX / VFITX 偏离 120D 均线 · 1999–至今</div>
           </div>
           <span id="radarCreditBadge" class="px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap">--</span>
         </div>
 
-        <div class="grid grid-cols-3 gap-2 text-center bg-gray-950/70 rounded-lg p-2.5 border border-gray-800/80 mono">
-          <div>
-            <div class="text-[11px] text-gray-400 font-sans">当前比值</div>
-            <div id="rcRatio" class="text-sm font-bold text-white mt-0.5">--</div>
-          </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center bg-gray-950/70 rounded-lg p-2.5 border border-gray-800/80 mono">
           <div>
             <div class="text-[11px] text-gray-400 font-sans">偏离 120D 均线</div>
             <div id="rcDev" class="text-sm font-bold mt-0.5">--</div>
@@ -234,14 +237,30 @@
             <div class="text-[11px] text-gray-400 font-sans">近 20 日变化</div>
             <div id="rcChg20" class="text-sm font-bold mt-0.5">--</div>
           </div>
+          <div>
+            <div class="text-[11px] text-gray-400 font-sans">历史 ±1σ 区间</div>
+            <div id="rcBand" class="text-xs font-semibold text-sky-300 mt-1">--</div>
+          </div>
+          <div>
+            <div class="text-[11px] text-gray-400 font-sans">历史 Z-Score</div>
+            <div id="rcZ" class="text-sm font-bold mt-0.5">--</div>
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-[11px] text-gray-400">
+            <span>历史偏离度走势（浅蓝阴影 = 历史 μ ± 1σ 正常区间，红虚线 = -1.5% 红灯线）</span>
+            <span class="mono text-gray-500">滚轮缩放 / 拖动</span>
+          </div>
+          <div class="h-56 cursor-grab active:cursor-grabbing"><canvas id="creditRadarChart"></canvas></div>
         </div>
 
         <div id="rcLiveHint" class="text-xs text-gray-200 bg-gray-800/60 rounded-lg p-2.5 leading-relaxed border-l-2 border-sky-500">--</div>
 
         <div class="text-xs text-gray-400 space-y-1.5 pt-1 border-t border-gray-800/80 leading-relaxed">
           <div class="text-gray-200 font-medium">怎么用 / 什么时候额外考虑加减仓？</div>
-          <div>• <span class="text-rose-400 font-medium">额外减仓（防 2008 式信贷危机）</span>：当偏离 120D 均线跌破 <span class="mono text-gray-200">-1.5%</span>（红灯）或跌破均线且 20 日急跌 <span class="mono text-gray-200">&gt;1%</span>，说明债市机构已全面去风险；若此时主模型 Net 仍高，可<span class="text-white">提前手动多降 15%–25% Net 并压低 Gross</span>。</div>
-          <div>• <span class="text-emerald-400 font-medium">辅助加仓（熊市见底先行信号）</span>：大熊市末期信用市场往往领先股市见底；当比值率先重回 120D 均线上方（转绿灯）且 20 日动量转正，可提前平掉指数空头、为主模型翻多增强信心。</div>
+          <div>• <span class="text-rose-400 font-medium">额外减仓（防 2008 式信贷危机）</span>：当偏离 120D 均线跌破 <span class="mono text-gray-200">-1.5%</span>（红灯）或突破历史 <span class="mono text-gray-200">-1σ</span> 下沿，说明债市机构已全面去风险；若主模型 Net 仍高，可<span class="text-white">提前手动多降 15%–25% Net 并压低 Gross</span>。</div>
+          <div>• <span class="text-emerald-400 font-medium">辅助加仓（熊市见底先行信号）</span>：大熊市末期信用市场往往领先股市见底；当曲线从 <span class="mono text-gray-200">-1σ</span> 下方回抽并率先站回 120D 均线上方（转绿灯），可提前平掉指数空头、为主模型翻多增强信心。</div>
           <div>• <span class="text-gray-300">为什么不放进主公式</span>：27 年实测显示常驻加权会在 AI 长牛期拖累约 1.5%/年收益，作为独立危机安全阀性价比最高。</div>
         </div>
       </div>
@@ -251,14 +270,14 @@
         <div class="flex items-start justify-between gap-2">
           <div>
             <div class="text-sm font-semibold text-white">雷达 B：波动率期限结构（^VIX / ^VIX3M）</div>
-            <div class="text-xs text-gray-400 mt-0.5 mono">1个月恐慌 vs 3个月恐慌 · 识别踩踏底与右侧回补点</div>
+            <div class="text-xs text-gray-400 mt-0.5 mono">1个月恐慌 vs 3个月恐慌 · 2006–至今</div>
           </div>
           <span id="radarVixBadge" class="px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap">--</span>
         </div>
 
-        <div class="grid grid-cols-3 gap-2 text-center bg-gray-950/70 rounded-lg p-2.5 border border-gray-800/80 mono">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center bg-gray-950/70 rounded-lg p-2.5 border border-gray-800/80 mono">
           <div>
-            <div class="text-[11px] text-gray-400 font-sans">当前 VIX / VIX3M</div>
+            <div class="text-[11px] text-gray-400 font-sans">当前比值</div>
             <div id="rvRatio" class="text-sm font-bold text-white mt-0.5">--</div>
           </div>
           <div>
@@ -266,16 +285,28 @@
             <div id="rvMax40" class="text-sm font-bold text-amber-300 mt-0.5">--</div>
           </div>
           <div>
-            <div class="text-[11px] text-gray-400 font-sans">基准 vs 50D 线</div>
-            <div id="rvMa50" class="text-sm font-bold mt-0.5">--</div>
+            <div class="text-[11px] text-gray-400 font-sans">历史 ±1σ 区间</div>
+            <div id="rvBand" class="text-xs font-semibold text-sky-300 mt-1">--</div>
           </div>
+          <div>
+            <div class="text-[11px] text-gray-400 font-sans">Z-Score / 50D</div>
+            <div id="rvZMa50" class="text-xs font-bold mt-1">--</div>
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-[11px] text-gray-400">
+            <span>历史期限结构走势（浅蓝阴影 = 历史 μ ± 1σ 正常区间，红虚线 = 1.03 倒挂线）</span>
+            <span class="mono text-gray-500">滚轮缩放 / 拖动</span>
+          </div>
+          <div class="h-56 cursor-grab active:cursor-grabbing"><canvas id="vixRadarChart"></canvas></div>
         </div>
 
         <div id="rvLiveHint" class="text-xs text-gray-200 bg-gray-800/60 rounded-lg p-2.5 leading-relaxed border-l-2 border-amber-500">--</div>
 
         <div class="text-xs text-gray-400 space-y-1.5 pt-1 border-t border-gray-800/80 leading-relaxed">
           <div class="text-gray-200 font-medium">怎么用 / 什么时候额外考虑加减仓？</div>
-          <div>• <span class="text-emerald-400 font-medium">额外加仓（高胜率右侧回补点）</span>：近 40 个交易日内出现过倒挂（<span class="mono text-gray-200">&gt;1.03</span>），随后比值重新回落至 <span class="mono text-gray-200">&lt;0.94</span> <span class="text-white">且</span>基准站回 50 日均线上方（绿灯）——说明恐慌对冲盘已出清，若主模型 Net 仍低于 +65%，可<span class="text-white">提前手动分批加回多头至 +65% 附近</span>（实证可显著缓解 V 型反转踏空）。</div>
+          <div>• <span class="text-emerald-400 font-medium">额外加仓（高胜率右侧回补点）</span>：近 40 个交易日内出现过倒挂（<span class="mono text-gray-200">&gt;1.03</span>，显著高于 <span class="mono text-gray-200">+1σ</span>），随后回落至 <span class="mono text-gray-200">&lt;0.94</span> <span class="text-white">且</span>基准站回 50 日均线上方（绿灯）——若主模型 Net 仍低于 +65%，可<span class="text-white">提前手动分批加回多头至 +65% 附近</span>。</div>
           <div>• <span class="text-rose-400 font-medium">严控 Gross · 严禁追空（红灯倒挂期）</span>：当 <span class="mono text-gray-200">VIX/VIX3M ≥ 1.03</span> 时市场处于极端恐慌（实证倒挂后 60 日科技股平均反弹 <span class="mono text-emerald-400">+6.8%</span>）。此时应把 <span class="text-white">Gross 压低到 60%–80%</span> 防多空双杀，但<span class="text-white">不要在倒挂时恐慌割肉或新建净空头</span>。</div>
           <div>• <span class="text-gray-300">为什么不直接做减仓刹车</span>：急跌一倒挂就砍仓虽能减少 2020 闪崩回撤，但多数时候会卖在恐慌底部、翻倍推高换手率。</div>
         </div>
@@ -433,6 +464,10 @@
     let GLOBAL_DATA = null;
     let CURRENT_EVENT_FILTER = 'all';
     let NET_CHART = null;
+    let CREDIT_RADAR_CHART = null;
+    let VIX_RADAR_CHART = null;
+    let CREDIT_LEN = 0;
+    let VIX_LEN = 0;
     let NET_DATES = [];
     let NET_VALUES = [];
     let NET_GROSS = [];
@@ -541,29 +576,269 @@
       el.className = `px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${styles[level] || styles.normal}`;
     }
 
-    function renderRadar(radar) {
+    // Plugin to draw historical Mean ± 1 SD shaded corridor & alert threshold on radar charts
+    const radarBandPlugin = {
+      id: 'radarBandPlugin',
+      beforeDatasetsDraw(chart) {
+        const cfg = chart.options.plugins && chart.options.plugins.radarBand;
+        if (!cfg || cfg.upper == null || cfg.lower == null) return;
+        const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
+        if (!y) return;
+        const yUp = Math.max(top, Math.min(bottom, y.getPixelForValue(cfg.upper)));
+        const yLo = Math.max(top, Math.min(bottom, y.getPixelForValue(cfg.lower)));
+        ctx.save();
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+        ctx.fillRect(left, Math.min(yUp, yLo), right - left, Math.abs(yLo - yUp));
+        ctx.restore();
+      },
+      afterDatasetsDraw(chart) {
+        const cfg = chart.options.plugins && chart.options.plugins.radarBand;
+        if (!cfg) return;
+        const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
+        if (!y) return;
+        const drawHLine = (val, color, dash, label, alignTop = false) => {
+          if (val == null) return;
+          const py = y.getPixelForValue(val);
+          if (py < top - 2 || py > bottom + 2) return;
+          ctx.save();
+          ctx.beginPath();
+          ctx.setLineDash(dash);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1.1;
+          ctx.moveTo(left, py);
+          ctx.lineTo(right, py);
+          ctx.stroke();
+          if (label) {
+            ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
+            ctx.fillStyle = color;
+            ctx.textAlign = 'right';
+            ctx.fillText(label, right - 4, alignTop ? py - 3 : py + 11);
+          }
+          ctx.restore();
+        };
+        drawHLine(cfg.upper, 'rgba(56, 189, 248, 0.72)', [4, 4], cfg.upperLabel, true);
+        drawHLine(cfg.mean, 'rgba(148, 163, 184, 0.75)', [2, 3], cfg.meanLabel, true);
+        drawHLine(cfg.lower, 'rgba(56, 189, 248, 0.72)', [4, 4], cfg.lowerLabel, false);
+        if (cfg.alert != null) {
+          drawHLine(cfg.alert, 'rgba(244, 63, 94, 0.85)', [6, 3], cfg.alertLabel, cfg.alertAlignTop !== false);
+        }
+      }
+    };
+
+    function renderRadar(radar, dailyNet) {
       if (!radar) return;
       const cr = radar.credit;
       const vt = radar.vix_term;
 
       applyRadarBadge(document.getElementById('radarCreditBadge'), cr.level, cr.label);
-      document.getElementById('rcRatio').textContent = cr.ratio.toFixed(4);
       const rcDevEl = document.getElementById('rcDev');
       rcDevEl.textContent = `${cr.dev_pct >= 0 ? '+' : ''}${(cr.dev_pct * 100).toFixed(2)}%`;
       rcDevEl.className = `text-sm font-bold mt-0.5 ${cr.dev_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
       const rcChgEl = document.getElementById('rcChg20');
       rcChgEl.textContent = `${cr.chg_20d_pct >= 0 ? '+' : ''}${(cr.chg_20d_pct * 100).toFixed(2)}%`;
       rcChgEl.className = `text-sm font-bold mt-0.5 ${cr.chg_20d_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+      if (cr.band_lower_pct != null && cr.band_upper_pct != null) {
+        document.getElementById('rcBand').textContent = `${(cr.band_lower_pct * 100).toFixed(1)}% ~ +${(cr.band_upper_pct * 100).toFixed(1)}%`;
+      }
+      if (cr.z_score != null) {
+        const rcZEl = document.getElementById('rcZ');
+        rcZEl.textContent = `${cr.z_score >= 0 ? '+' : ''}${cr.z_score.toFixed(2)}σ`;
+        rcZEl.className = `text-sm font-bold mt-0.5 ${cr.z_score <= -1 ? 'text-rose-400' : (cr.z_score >= 1 ? 'text-emerald-400' : 'text-gray-200')}`;
+      }
       document.getElementById('rcLiveHint').textContent = `当前解读：${cr.hint}`;
 
       applyRadarBadge(document.getElementById('radarVixBadge'), vt.level, vt.label);
       document.getElementById('rvRatio').textContent = vt.ratio != null ? vt.ratio.toFixed(3) : '--';
       document.getElementById('vixTermKpi').textContent = vt.ratio != null ? vt.ratio.toFixed(3) : '--';
       document.getElementById('rvMax40').textContent = vt.max_40d != null ? vt.max_40d.toFixed(3) : '--';
-      const ma50El = document.getElementById('rvMa50');
-      ma50El.textContent = vt.above_ma50 ? '上方 (站稳)' : '下方 (弱势)';
-      ma50El.className = `text-sm font-bold mt-0.5 font-sans ${vt.above_ma50 ? 'text-emerald-400' : 'text-rose-400'}`;
+      if (vt.band_lower != null && vt.band_upper != null) {
+        document.getElementById('rvBand').textContent = `${vt.band_lower.toFixed(2)} ~ ${vt.band_upper.toFixed(2)}`;
+      }
+      const rvZMa50El = document.getElementById('rvZMa50');
+      const zTxt = vt.z_score != null ? `${vt.z_score >= 0 ? '+' : ''}${vt.z_score.toFixed(2)}σ` : '--';
+      rvZMa50El.textContent = `${zTxt} · ${vt.above_ma50 ? '50D上' : '50D下'}`;
+      rvZMa50El.className = `text-xs font-bold mt-1 ${vt.z_score != null && vt.z_score >= 1 ? 'text-rose-400' : (vt.above_ma50 ? 'text-emerald-400' : 'text-amber-300')}`;
       document.getElementById('rvLiveHint').textContent = `当前解读：${vt.hint}`;
+
+      if (!dailyNet || !dailyNet.dates) return;
+
+      // Chart A: Credit Spread Proxy deviation from 120D MA (%)
+      const crDates = dailyNet.dates;
+      const crVals = dailyNet.credit_dev || [];
+      CREDIT_LEN = crDates.length;
+      const crMeanPct = cr.hist_mean_pct != null ? cr.hist_mean_pct * 100 : 0;
+      const crStdPct = cr.hist_std_pct != null ? cr.hist_std_pct * 100 : 2.0;
+      const crUpperPct = cr.band_upper_pct != null ? cr.band_upper_pct * 100 : crMeanPct + crStdPct;
+      const crLowerPct = cr.band_lower_pct != null ? cr.band_lower_pct * 100 : crMeanPct - crStdPct;
+      const crInitMin = Math.max(0, CREDIT_LEN - 756);
+
+      CREDIT_RADAR_CHART = new Chart(document.getElementById('creditRadarChart'), {
+        type: 'line',
+        plugins: [radarBandPlugin],
+        data: {
+          labels: crDates,
+          datasets: [{
+            label: '信用比率偏离 120D 均线 (%)',
+            data: crVals,
+            borderColor: '#38bdf8',
+            borderWidth: 1.6,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            fill: false,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            y: {
+              grid: { color: '#1f2937' },
+              ticks: { color: '#9ca3af', callback: v => `${v >= 0 ? '+' : ''}${Number(v).toFixed(0)}%` }
+            },
+            x: {
+              min: crInitMin,
+              max: CREDIT_LEN - 1,
+              grid: { display: false },
+              ticks: { color: '#9ca3af', maxTicksLimit: 7, autoSkip: true }
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            radarBand: {
+              mean: crMeanPct,
+              upper: crUpperPct,
+              lower: crLowerPct,
+              meanLabel: `μ ${crMeanPct >= 0 ? '+' : ''}${crMeanPct.toFixed(1)}%`,
+              upperLabel: `+1σ (${crUpperPct >= 0 ? '+' : ''}${crUpperPct.toFixed(1)}%)`,
+              lowerLabel: `-1σ (${crLowerPct.toFixed(1)}%)`,
+              alert: -1.5,
+              alertLabel: '红灯 -1.5%',
+              alertAlignTop: false,
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.95)',
+              borderColor: '#334155',
+              borderWidth: 1,
+              callbacks: {
+                label: (ctx) => {
+                  const v = ctx.parsed.y;
+                  if (v == null) return '';
+                  const z = crStdPct > 0 ? (v - crMeanPct) / crStdPct : 0;
+                  return ` 偏离 120D: ${v >= 0 ? '+' : ''}${v.toFixed(2)}% (Z = ${z >= 0 ? '+' : ''}${z.toFixed(2)}σ)`;
+                }
+              }
+            },
+            zoom: {
+              limits: { x: { min: 0, max: CREDIT_LEN - 1, minRange: 30 } },
+              pan: { enabled: true, mode: 'x' },
+              zoom: { wheel: { enabled: true, speed: 0.12 }, pinch: { enabled: true }, mode: 'x' }
+            }
+          }
+        }
+      });
+
+      // Chart B: VIX / VIX3M Term Structure (starting from first non-null date ~2006-07)
+      const vtRaw = dailyNet.vix_term || [];
+      const firstVtIdx = vtRaw.findIndex(v => v != null);
+      const vtDates = firstVtIdx >= 0 ? dailyNet.dates.slice(firstVtIdx) : [];
+      const vtVals = firstVtIdx >= 0 ? vtRaw.slice(firstVtIdx) : [];
+      VIX_LEN = vtDates.length;
+      if (VIX_LEN > 0) {
+        const vtMean = vt.hist_mean ?? 0.90;
+        const vtStd = vt.hist_std ?? 0.09;
+        const vtUpper = vt.band_upper ?? (vtMean + vtStd);
+        const vtLower = vt.band_lower ?? (vtMean - vtStd);
+        const vtInitMin = Math.max(0, VIX_LEN - 756);
+
+        VIX_RADAR_CHART = new Chart(document.getElementById('vixRadarChart'), {
+          type: 'line',
+          plugins: [radarBandPlugin],
+          data: {
+            labels: vtDates,
+            datasets: [{
+              label: 'VIX / VIX3M',
+              data: vtVals,
+              borderColor: '#f59e0b',
+              borderWidth: 1.6,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              fill: false,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+              y: {
+                grid: { color: '#1f2937' },
+                ticks: { color: '#9ca3af', callback: v => Number(v).toFixed(2) }
+              },
+              x: {
+                min: vtInitMin,
+                max: VIX_LEN - 1,
+                grid: { display: false },
+                ticks: { color: '#9ca3af', maxTicksLimit: 7, autoSkip: true }
+              }
+            },
+            plugins: {
+              legend: { display: false },
+              radarBand: {
+                mean: vtMean,
+                upper: vtUpper,
+                lower: vtLower,
+                meanLabel: `μ ${vtMean.toFixed(2)}`,
+                upperLabel: `+1σ (${vtUpper.toFixed(2)})`,
+                lowerLabel: `-1σ (${vtLower.toFixed(2)})`,
+                alert: 1.03,
+                alertLabel: '倒挂红灯 1.03',
+                alertAlignTop: true,
+              },
+              tooltip: {
+                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                borderColor: '#334155',
+                borderWidth: 1,
+                callbacks: {
+                  label: (ctx) => {
+                    const v = ctx.parsed.y;
+                    if (v == null) return '';
+                    const z = vtStd > 0 ? (v - vtMean) / vtStd : 0;
+                    return ` VIX/VIX3M: ${v.toFixed(3)} (Z = ${z >= 0 ? '+' : ''}${z.toFixed(2)}σ)`;
+                  }
+                }
+              },
+              zoom: {
+                limits: { x: { min: 0, max: VIX_LEN - 1, minRange: 30 } },
+                pan: { enabled: true, mode: 'x' },
+                zoom: { wheel: { enabled: true, speed: 0.12 }, pinch: { enabled: true }, mode: 'x' }
+              }
+            }
+          }
+        });
+      }
+
+      document.querySelectorAll('.radar-preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const p = btn.dataset.rpreset;
+          const daysMap = { '6m': 126, '1y': 252, '3y': 756, '5y': 1260 };
+          if (CREDIT_RADAR_CHART && CREDIT_LEN > 0) {
+            const s = p === 'all' ? 0 : Math.max(0, CREDIT_LEN - (daysMap[p] || 756));
+            CREDIT_RADAR_CHART.zoomScale('x', { min: s, max: CREDIT_LEN - 1 }, 'none');
+          }
+          if (VIX_RADAR_CHART && VIX_LEN > 0) {
+            const s = p === 'all' ? 0 : Math.max(0, VIX_LEN - (daysMap[p] || 756));
+            VIX_RADAR_CHART.zoomScale('x', { min: s, max: VIX_LEN - 1 }, 'none');
+          }
+          document.querySelectorAll('.radar-preset-btn').forEach(b => {
+            const on = b.dataset.rpreset === p;
+            b.classList.toggle('filter-btn', on);
+            b.classList.toggle('active', on);
+          });
+        });
+      });
     }
 
     function renderMetricsTable(metricSet) {
@@ -1186,7 +1461,7 @@
         document.getElementById('ndxPrice').textContent = l.ndx_price.toFixed(0);
 
         renderFactorBars(l.scores, l.factor_details);
-        renderRadar(data.radar);
+        renderRadar(data.radar, data.daily_net);
         updateHedgeCalc();
         renderCharts(data);
         bindNetToolbar();

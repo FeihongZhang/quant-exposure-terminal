@@ -195,13 +195,17 @@ def download_close_data(core_tickers: list, aux_tickers: list, start_date: str) 
 
 def build_radar_snapshot(close: pd.DataFrame, bench_idx: pd.Series) -> dict:
     """构建独立辅助决策雷达（不进入主公式，用于人工极端情况辅助加减仓）"""
-    # 1. 信用利差代理：VWEHX (高收益债) / VFITX (中期美债)
+    # 1. 信用利差代理：VWEHX (高收益债) / VFITX (中期美债) 偏离 120D 均线 (%)
     cr = close["VWEHX"] / close["VFITX"]
     cr_ma120 = cr.rolling(120).mean()
+    cr_dev_series = (cr / cr_ma120 - 1.0).dropna()
     cr_cur = float(cr.iloc[-1])
     cr_ma_cur = float(cr_ma120.iloc[-1])
-    cr_dev = cr_cur / cr_ma_cur - 1.0
+    cr_dev = float(cr_dev_series.iloc[-1])
     cr_chg20 = float(cr.pct_change(20).iloc[-1])
+    cr_mean = float(cr_dev_series.mean())
+    cr_std = float(cr_dev_series.std())
+    cr_z = (cr_dev - cr_mean) / cr_std if cr_std > 0 else 0.0
 
     if cr_dev <= -0.015 or (cr_dev < 0 and cr_chg20 <= -0.01):
         cr_level, cr_label, cr_color = "danger", "红灯 · 信用显著收紧（系统性抽水预警）", "#ef4444"
@@ -217,9 +221,13 @@ def build_radar_snapshot(close: pd.DataFrame, bench_idx: pd.Series) -> dict:
     vix = close["^VIX"]
     vix3m = close["^VIX3M"]
     vix_term = vix / vix3m
+    vt_valid = vix_term.dropna()
     vix_cur = float(vix.iloc[-1])
     vix3m_cur = float(vix3m.iloc[-1]) if pd.notna(vix3m.iloc[-1]) else None
     vt_cur = float(vix_term.iloc[-1]) if pd.notna(vix_term.iloc[-1]) else None
+    vt_mean = float(vt_valid.mean()) if not vt_valid.empty else None
+    vt_std = float(vt_valid.std()) if not vt_valid.empty else None
+    vt_z = ((vt_cur - vt_mean) / vt_std) if (vt_cur is not None and vt_mean is not None and vt_std and vt_std > 0) else None
 
     ma50 = bench_idx.rolling(50).mean()
     above_ma50 = bool(bench_idx.iloc[-1] > ma50.iloc[-1])
@@ -249,6 +257,11 @@ def build_radar_snapshot(close: pd.DataFrame, bench_idx: pd.Series) -> dict:
             "ma120": round(cr_ma_cur, 4),
             "dev_pct": round(cr_dev, 4),
             "chg_20d_pct": round(cr_chg20, 4),
+            "hist_mean_pct": round(cr_mean, 4),
+            "hist_std_pct": round(cr_std, 4),
+            "band_upper_pct": round(cr_mean + cr_std, 4),
+            "band_lower_pct": round(cr_mean - cr_std, 4),
+            "z_score": round(cr_z, 2),
             "level": cr_level,
             "label": cr_label,
             "color": cr_color,
@@ -259,6 +272,11 @@ def build_radar_snapshot(close: pd.DataFrame, bench_idx: pd.Series) -> dict:
             "vix3m": round(vix3m_cur, 2) if vix3m_cur is not None else None,
             "ratio": round(vt_cur, 3) if vt_cur is not None else None,
             "max_40d": round(max_vt_40d, 3) if max_vt_40d is not None else None,
+            "hist_mean": round(vt_mean, 3) if vt_mean is not None else None,
+            "hist_std": round(vt_std, 3) if vt_std is not None else None,
+            "band_upper": round(vt_mean + vt_std, 3) if (vt_mean is not None and vt_std is not None) else None,
+            "band_lower": round(vt_mean - vt_std, 3) if (vt_mean is not None and vt_std is not None) else None,
+            "z_score": round(vt_z, 2) if vt_z is not None else None,
             "inverted_recent_40d": inv_recent_40d,
             "above_ma50": above_ma50,
             "level": vt_level,
@@ -450,6 +468,11 @@ def main():
         "strategy": calc_metrics(bt["strat_ret"], bt["rf"]),
     }
 
+    # 供辅助雷达历史趋势图使用的对齐日频序列
+    cr_ratio_full = close["VWEHX"] / close["VFITX"]
+    cr_dev_full = (cr_ratio_full / cr_ratio_full.rolling(120).mean() - 1.0) * 100.0
+    vix_term_full = close["^VIX"] / close["^VIX3M"]
+
     payload = {
         "model_version": CONFIG["model_version"],
         "updated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
@@ -508,6 +531,12 @@ def main():
             "strat_nav": [round(float(x), 3) for x in bt["strat_nav"]],
             "ndx": [round(float(x), 1) for x in close.loc[bt.index, "^NDX"]],
             "S": [round(float(x), 2) for x in bt["S"]],
+            "credit_dev": [
+                round(float(x), 2) if pd.notna(x) else None for x in cr_dev_full.loc[bt.index]
+            ],
+            "vix_term": [
+                round(float(x), 3) if pd.notna(x) else None for x in vix_term_full.loc[bt.index]
+            ],
         },
     }
 
