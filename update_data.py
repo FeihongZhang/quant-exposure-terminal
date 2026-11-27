@@ -468,10 +468,18 @@ def main():
         "strategy": calc_metrics(bt["strat_ret"], bt["rf"]),
     }
 
-    # 供辅助雷达历史趋势图使用的对齐日频序列
+    # 供辅助雷达与核心 2 因子历史趋势图使用的对齐日频序列与统计
     cr_ratio_full = close["VWEHX"] / close["VFITX"]
     cr_dev_full = (cr_ratio_full / cr_ratio_full.rolling(120).mean() - 1.0) * 100.0
     vix_term_full = close["^VIX"] / close["^VIX3M"]
+
+    tr_mean = float(bt["score_trend"].mean())
+    tr_std = float(bt["score_trend"].std())
+    tr_z = (float(latest_row["score_trend"]) - tr_mean) / tr_std if tr_std > 0 else 0.0
+
+    ld_mean = float(bt["score_lead"].mean())
+    ld_std = float(bt["score_lead"].std())
+    ld_z = (float(latest_row["score_lead"]) - ld_mean) / ld_std if ld_std > 0 else 0.0
 
     payload = {
         "model_version": CONFIG["model_version"],
@@ -502,6 +510,22 @@ def main():
                 "ma50_vs_ma200_pct": round(float(ma50.iloc[-1] / ma200.iloc[-1] - 1.0), 4),
                 "rel_vs_ma150_pct": round(float(rel_spx.iloc[-1] / rel_ma150.iloc[-1] - 1.0), 4),
             },
+            "factor_stats": {
+                "trend": {
+                    "hist_mean": round(tr_mean, 3),
+                    "hist_std": round(tr_std, 3),
+                    "band_upper": round(min(1.0, tr_mean + tr_std), 3),
+                    "band_lower": round(max(-1.0, tr_mean - tr_std), 3),
+                    "z_score": round(tr_z, 2),
+                },
+                "lead": {
+                    "hist_mean": round(ld_mean, 3),
+                    "hist_std": round(ld_std, 3),
+                    "band_upper": round(min(1.0, ld_mean + ld_std), 3),
+                    "band_lower": round(max(-1.0, ld_mean - ld_std), 3),
+                    "z_score": round(ld_z, 2),
+                },
+            },
             "raw_net": round(float(latest_row["raw_net"]), 4),
             "target_net": round(float(latest_row["target_net"]), 4),
             "exec_net": round(float(latest_row["exec_net"]), 4),
@@ -531,6 +555,8 @@ def main():
             "strat_nav": [round(float(x), 3) for x in bt["strat_nav"]],
             "ndx": [round(float(x), 1) for x in close.loc[bt.index, "^NDX"]],
             "S": [round(float(x), 2) for x in bt["S"]],
+            "score_trend": [round(float(x), 3) for x in bt["score_trend"]],
+            "score_lead": [round(float(x), 3) for x in bt["score_lead"]],
             "credit_dev": [
                 round(float(x), 2) if pd.notna(x) else None for x in cr_dev_full.loc[bt.index]
             ],
